@@ -46,11 +46,11 @@ handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)
 logger.addHandler(handler)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
-SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'source_metadata')
-TXT_FIELD = os.getenv('TXT_FIELD', 'txt_result')
+SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'harvest.items')
+TXT_FIELD = os.getenv('TXT_FIELD', 'resultobject')
 ID_FIELD = os.getenv('ID_FIELD', 'id')
 MD5_FIELD = os.getenv('MD5_FIELD', 'content_md5')
-TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', 'metadata.')  # include trailing dot for schema-qualified names
+TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', 'metadata3.')  # include trailing dot for schema-qualified names
 
 if not DATABASE_URL:
     logger.error('DATABASE_URL not set.')
@@ -81,7 +81,8 @@ async def create_tables():
         schema_name = TARGET_SCHEMA[:-1]
         await database.execute(f'CREATE SCHEMA IF NOT EXISTS {schema_name}')
 
-    # Use JSONB for raw_mcf/details when supported; allow failures on sqlite which will ignore JSONB
+    # Build DDL as one string but execute statements individually because asyncpg
+    # (and the `databases` library) do not allow multiple SQL commands in a single prepared statement.
     ddl = f"""
     CREATE TABLE IF NOT EXISTS {qn('records')} (
         id SERIAL PRIMARY KEY,
@@ -175,7 +176,20 @@ async def create_tables():
         details TEXT
     );
     """
-    await database.execute(ddl)
+
+    # Split into individual statements and execute one by one
+    statements = [s.strip() for s in ddl.split(';') if s.strip()]
+    for stmt in statements:
+        # add semicolon back for clarity (not strictly required)
+        try:
+            await database.execute(stmt + ';')
+        except Exception:
+            # Some DB backends (sqlite) may not like certain statements (e.g. JSONB types) or semicolons —
+            # try without appending semicolon if it failed.
+            try:
+                await database.execute(stmt)
+            except Exception as e:
+                logger.exception('Failed executing DDL statement: %s', e)
     logger.info('Ensured tables (prefix=%s)', SCHEMA_PREFIX)
 
 
@@ -408,11 +422,9 @@ async def insert_record_and_related(mcf: Dict[str, Any], source_identifier: str,
 
 async def process_all_source_rows():
     # Select only source rows whose MD5 (if present) is not already in records
-    # Rows with NULL MD5 are retrieved as well (we'll compute MD5 later and deduplicate)
-    if MD5_FIELD:
-        query = f"SELECT {ID_FIELD} AS id, {TXT_FIELD} AS txt, {MD5_FIELD} AS md5 FROM {SOURCE_TABLE} s WHERE (s.{MD5_FIELD} IS NULL) OR (NOT EXISTS (SELECT 1 FROM {qn('records')} r WHERE r.md5_hash = s.{MD5_FIELD}))"
-    else:
-        query = f"SELECT {ID_FIELD} AS id, {TXT_FIELD} AS txt, NULL AS md5 FROM {SOURCE_TABLE}"
+
+    query = f"SELECT {ID_FIELD} AS id, {TXT_FIELD} AS txt, {MD5_FIELD} AS md5 FROM {SOURCE_TABLE} s WHERE (s.{MD5_FIELD} IS NULL) OR (NOT EXISTS (SELECT 1 FROM {qn('records')} r WHERE r.md5_hash = s.{MD5_FIELD})) LIMIT 10"
+
 
     rows = await database.fetch_all(query)
     logger.info('Selected %d source rows to process', len(rows))
@@ -421,7 +433,7 @@ async def process_all_source_rows():
         try:
             source_id = str(r['id'])
             txt = r['txt']
-            source_md5 = r['md5'] or compute_md5_string(txt)
+            source_md5 = r['md5']
 
             # parse using pygeometa
             try:
