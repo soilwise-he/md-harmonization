@@ -1,0 +1,9 @@
+{
+    "_id": "66ea18c10fd02f67b5f25302",
+    "title": "Africa SoilGrids - Extractable aluminium (Al)",
+    "publication_date": "2021-07-14T11: 52: 32",
+    "source": "ISRIC",
+    "short_description": "Extractable aluminium content (Al measured by Mehlich 3) in mg/kg (fine earth) at 2 depth intervals (0-20 cm and 20-50 cm) predicted using two sets of Africa soil profiles data. For details see published paper here below (Hengl T., G.B.M. Heuvelink, B. Kempen, J.G.B. Leenaars, M.G. Walsh, K.D. Shepherd, A. Sila, R.A. MacMillan, J. Mendes de Jesus, L.T. Desta, J.E. Tondoh, 2015. Mapping Soil Properties of Africa at 250 m Resolution: Random Forests Significantly Improve Current Predictions. PLoS ONE 10(6)",
+    "authors": [],
+    "url": "https: //data.isric.org/geonetwork/srv/fre/catalog.search#/metadata/a21e3629-69a0-4e02-8eb2-3436e7a26f2e"
+}

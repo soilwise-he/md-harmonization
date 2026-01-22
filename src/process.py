@@ -23,9 +23,7 @@ Usage:
 
 """
 
-import os
-import sys
-import json
+import os, sys, yaml, json
 import hashlib
 import logging
 import traceback
@@ -50,9 +48,11 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///soilwise.db')
 SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
+SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
 TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
+PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')  # comma-separated list of source names to process; empty = all
 RECORDS_PER_PAGE = 100
 
 if not DATABASE_URL:
@@ -114,6 +114,14 @@ async def create_tables():
         title TEXT,
         abstract TEXT,
         raw_mcf TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS {qn('records_failed')} (
+    identifier text ,
+    hash text NOT NULL,
+    error text,
+    date timestamp without time zone,
+    CONSTRAINT records_failed_pkey PRIMARY KEY (hash)
     );
 
     CREATE TABLE IF NOT EXISTS {qn('person')} (
@@ -521,40 +529,86 @@ def parse_date(ds):
         return None
 
 
+
+
 async def process_all_source_rows():
+
+    filtersql=""
+    if PROCESS_SOURCES and len(PROCESS_SOURCES) > 0:
+        filtersql = " AND lower(s.source) IN (" + ",".join([f"'{s.lower().strip()}'" for s in PROCESS_SOURCES]) + ") "
+
     # Select only source rows whose MD5 (if present) is not already in records
-
     query = f"""
-        SELECT identifier, resultobject, hash, source, project FROM {SOURCE_TABLE} s 
-        WHERE resulttype='iso19139:2007' and (NOT EXISTS (
-            SELECT 1 FROM {qn('records')} r WHERE r.md5_hash = s.hash)) LIMIT {RECORDS_PER_PAGE}"""
+        SELECT identifier, identifiertype, resultobject,
+        resulttype, hash, source, project, turtle, 
+        (select turtle_prefix from {SOURCE_SOURCE_TABLE} 
+        where name = s.source) as ttl_pref, doimetadata FROM {SOURCE_TABLE} s 
+        WHERE (NOT EXISTS (
+            SELECT 1 FROM {qn('records')} r WHERE r.md5_hash = s.hash)) 
+        AND s.source <> 'CORDIS'
+        {filtersql}
+        AND (NOT EXISTS (
+            SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash))    
+        LIMIT {RECORDS_PER_PAGE}"""
 
+    # resulttype='iso19139:2007' and
     rows = await database.fetch_all(query)
     logger.info('Selected %d source rows to process', len(rows))
 
     for r in rows:
-        try:
-            fk_source = str(r['identifier'])
-            txt = r['resultobject']
-            source_md5 = r['hash']
-            source = str(r['source'])
-            project = str(r['project'])
+        fk_source = str(r['identifier'])
+        txt = r['resultobject']
+        resulttype = r['resulttype']
+        source_md5 = r['hash']
+        source = str(r['source'])
+        project = str(r['project'])
+        turtle = str(r['turtle'])
+        ttl_pref = str(r['ttl_pref']) or ''
+        doimetadata = r['doimetadata']
+        identifiertype = r['identifiertype']
+        ahash = r['hash']
 
-            # parse using pygeometa
-            try:
+        mcf = None
+        # parse using pygeometa
+        try:
+        # some sources log to various source-fields
+        # based on source select the relevant source field
+            if identifiertype == 'doi' and doimetadata not in (None,'') and not doimetadata.startswith('Failed'):
+                txt = doimetadata
+                mcf = import_metadata('openaire', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {fk_source} from {source} as doi metadata')
+            elif resulttype == 'iso19139:2007' or '<gmd:MD_Metadata' in txt:
+                mcf = import_metadata('iso19139', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {fk_source} from {source} as iso19139 metadata')
+            elif source == 'data.europa.eu':
+                mcf = import_metadata('dcat', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {fk_source} from {source} as explicit dcat metadata')
+            #elif source in ('CORDIS','IMPACT4SOIL','PREPSOIL'): # use turtle 
+            #    txt = r['']
+            elif turtle and len(turtle) > 10:
+                txt = ttl_pref + turtle 
+                mcf = import_metadata('dcat', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {fk_source} from {source} as implicit dcat metadata')
+            else:           
                 mcf = import_metadata('autodetect', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise KeyError(f'Empty document')
-            except Exception as e:
-                logger.info(f'pygeometa failed for  {fk_source} in {source}: {e}: {traceback.format_exc()}')
-                continue
-
+                    raise ValueError(f'Failed parsing {fk_source} from {source} as autodetect metadata')
+                        
             # insert record and related entities
             record_id = await insert_record_and_related(mcf, fk_source, source_md5, source, project)
-            logger.info('Inserted/ensured record id %s for source %s', record_id, source)
-
+            logger.info('Inserted record id %s for source %s', fk_source, source)
         except Exception as e:
-            logger.info('Failed processing source row %s for source %s: %s: %s', fk_source, source, e, traceback.format_exc())
+            res = await database.fetch_one(
+                f"INSERT INTO {qn('records_failed')} (identifier, hash, error, date) VALUES (:id, :hash, :error, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
+                values={
+                    'id': fk_source,
+                    'hash': ahash,
+                    'error': f"Import in {source}: {e}: {traceback.format_exc()}"
+                })
 
 
 async def main():

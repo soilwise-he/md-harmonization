@@ -1,0 +1,342 @@
+PREFIX dcat:   <http://www.w3.org/ns/dcat#>
+PREFIX dcatap: <http://data.europa.eu/r5r/>
+PREFIX dct:    <http://purl.org/dc/terms/>
+PREFIX foaf:   <http://xmlns.com/foaf/0.1/>
+PREFIX locn:   <http://www.w3.org/ns/locn#>
+PREFIX prov:   <http://www.w3.org/ns/prov#>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos:   <http://www.w3.org/2004/02/skos/core#>
+PREFIX vcard:  <http://www.w3.org/2006/vcard/ns#>
+
+<http://data.europa.eu/88u/dataset/f9a55177-b0dc-460b-91e8-dacc206eaa79-1>
+        rdf:type                   dcat:Dataset;
+        <http://data.europa.eu/930/processor>
+                [ rdf:type       foaf:Organization;
+                  locn:address   [ rdf:type           locn:Address;
+                                   locn:adminUnitL1   "DEU";
+                                   locn:adminUnitL2   "Hamburg";
+                                   locn:postCode      "D-21109";
+                                   locn:postName      "Hamburg";
+                                   locn:thoroughfare  "Neuenfelder Straße 19"
+                                 ];
+                  foaf:homepage  <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>;
+                  foaf:mbox      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                  foaf:name      "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                  foaf:phone     <tel:+%2B49%2040%204%2028%2040%20-%205285>
+                ];
+        <http://data.europa.eu/930/referenceSystem>
+                <http://www.opengis.net/def/crs/EPSG/0/25832>;
+        <http://data.europa.eu/930/resourceType>
+                <http://inspire.ec.europa.eu/metadata-codelist/ResourceType/dataset>;
+        <http://data.europa.eu/930/topicCategory>
+                <http://inspire.ec.europa.eu/metadata-codelist/TopicCategory/geoscientificInformation>;
+        dcatap:hvdCategory         <http://data.europa.eu/bna/c_dd313021>;
+        dct:accrualPeriodicity     <http://publications.europa.eu/resource/authority/frequency/IRREG>;
+        dct:description            "Markhorisonter är områden i marken som har likartade egenskaper och egenskaper och skiljer sig från områden över eller under dem. \n\nRumsliga data tillhandahålls som en WMS-representationstjänst."@sv-t-de-t0-mtec , "Os horizontes do solo são áreas dentro do solo que têm características e propriedades uniformemente semelhantes e diferem das áreas acima ou abaixo deles. \n\nOs dados geográficos são fornecidos sob a forma de um serviço de representação WMS."@pt-t-de-t0-mtec , "Orizonturile solului sunt zone din sol care au caracteristici și proprietăți similare în mod uniform și diferă de zonele de deasupra sau de dedesubtul lor. \n\nDatele spațiale sunt furnizate ca serviciu de reprezentare WMS."@ro-t-de-t0-mtec , "Грунтові горизонти — це ділянки в межах ґрунту, які мають рівномірно схожі характеристики і властивості і відрізняються від ділянок над ними або під ними. \n\nПросторові дані надаються як служба представлення WMS."@uk-t-de-t0-mtec , "Obzorja tal so območja v tleh, ki imajo enake značilnosti in lastnosti ter se razlikujejo od območij nad ali pod njimi. \n\nProstorski podatki se zagotavljajo kot storitev zastopanja WMS."@sl-t-de-t0-mtec , "Augsnes horizonti ir augsnes platības, kurām ir vienādi līdzīgas īpašības un pazīmes un kuras atšķiras no platībām virs vai zem tām.  \nTelpiskos datus sniedz kā WMS reprezentācijas pakalpojumu."@lv-t-de-t0-mtec , "Maaperän horisontit ovat maaperässä olevia alueita, joilla on yhdenmukaisesti samanlaiset ominaisuudet ja jotka eroavat niiden ylä- tai alapuolella olevista alueista. \n\nPaikkatiedot toimitetaan WMS-edustuspalveluna."@fi-t-de-t0-mtec , "Bodenhorizonte sind Bereiche innerhalb des Bodens, die einheitlich ähnliche Merkmale und Eigenschaften besitzen und sich von darüberliegenden oder darunterfolgenden Bereichen unterscheiden.\n\nDie Geodaten werden als WMS-Darstellungsdienst bereitgestellt."@de , "Οι ορίζοντες του εδάφους είναι περιοχές εντός του εδάφους που έχουν ομοιόμορφα παρόμοια χαρακτηριστικά και ιδιότητες και διαφέρουν από τις περιοχές πάνω ή κάτω από αυτές. \n\nΤα χωρικά δεδομένα παρέχονται ως υπηρεσία αναπαράστασης WMS."@el-t-de-t0-mtec , "Pôdne horizonty sú oblasti v rámci pôdy, ktoré majú rovnomerne podobné charakteristiky a vlastnosti a líšia sa od oblastí nad nimi alebo pod nimi. \n\nPriestorové údaje sa poskytujú ako služba reprezentácie WMS."@sk-t-de-t0-mtec , "Почвените хоризонти са райони в рамките на почвата, които имат еднакви характеристики и свойства и се различават от районите над или под тях. \n\nПространствените данни се предоставят като услуга за представителство на WMS."@bg-t-de-t0-mtec , "Mullahorisondid on mullas asuvad alad, millel on ühtlaselt sarnased omadused ja tunnused ning mis erinevad neist kõrgemal või allpool asuvatest aladest.  \nRuumiandmeid esitatakse WMSi esindusteenusena."@et-t-de-t0-mtec , "A talajhorizontok a talajon belüli olyan területek, amelyek egységesen hasonló jellemzőkkel és tulajdonságokkal rendelkeznek, és eltérnek a felettük vagy alattuk lévő területektől. \n\nA téradatokat WMS reprezentációs szolgáltatásként szolgáltatják."@hu-t-de-t0-mtec , "Gli orizzonti del suolo sono aree all'interno del suolo che hanno caratteristiche e proprietà uniformemente simili e differiscono dalle aree sopra o sotto di esse. \n\nI dati territoriali sono forniti come servizio di rappresentazione WMS."@it-t-de-t0-mtec , "Los horizontes del suelo son áreas dentro del suelo que tienen características y propiedades uniformemente similares y difieren de las áreas por encima o por debajo de ellos. \n\nLos datos espaciales se proporcionan como un servicio de representación WMS."@es-t-de-t0-mtec , "Is éard is léaslínte ithreach ann limistéir laistigh den ithir a bhfuil saintréithe agus airíonna comhchosúla acu agus atá difriúil ó limistéir os a gcionn nó faoina mbun. \n\nCuirtear na sonraí spásúla ar fáil mar sheirbhís ionadaíochta WMS."@ga-t-de-t0-mtec , "L-orizzonti tal-ħamrija huma żoni fil-ħamrija li għandhom karatteristiċi u proprjetajiet simili b’mod uniformi u jvarjaw minn żoni ta’ fuq jew ta’ taħthom. \n\nId-data ġeografika hija pprovduta bħala servizz ta’ rappreżentazzjoni tad-WMS."@mt-t-de-t0-mtec , "Jordbundshorisonter er områder i jorden, der har ensartede karakteristika og egenskaber og adskiller sig fra områder over eller under dem. \n\nGeodataene leveres som en WMS-repræsentationstjeneste."@da-t-de-t0-mtec , "Obzori tla su područja unutar tla koja imaju jednoliko slične karakteristike i svojstva i razlikuju se od područja iznad ili ispod njih. \n\nProstorni podaci pružaju se kao usluga prikaza WMS-a."@hr-t-de-t0-mtec , "Soil horizons are areas within the soil that have uniformly similar characteristics and properties and differ from areas above or below them. \n\nThe spatial data is provided as a WMS representation service."@en-t-de-t0-mtec , "Půdní horizonty jsou oblasti v půdě, které mají jednotně podobné charakteristiky a vlastnosti a liší se od oblastí nad nimi nebo pod nimi. \n\nProstorová data jsou poskytována jako služba reprezentace WMS."@cs-t-de-t0-mtec , "Bodemhorizonten zijn gebieden in de bodem die uniform vergelijkbare kenmerken en eigenschappen hebben en verschillen van gebieden erboven of eronder. \n\nDe ruimtelijke gegevens worden verstrekt als WMS-representatiedienst."@nl-t-de-t0-mtec , "Les horizons de sol sont des zones à l'intérieur du sol qui présentent des caractéristiques et des propriétés uniformément similaires et qui diffèrent des zones situées au-dessus ou au-dessous. \n\nLes géodonnées sont fournies en tant que service de représentation WMS."@fr-t-de-t0-mtec , "Horyzonty glebowe to obszary w obrębie gleby, które mają jednakowo podobne cechy i właściwości oraz różnią się od obszarów powyżej lub poniżej nich. \n\nDane przestrzenne są dostarczane jako usługa reprezentacji WMS."@pl-t-de-t0-mtec , "Dirvožemio horizontai – dirvožemio plotai, pasižymintys vienodai panašiomis savybėmis ir savybėmis ir besiskiriantys nuo virš jų ar žemiau jų esančių plotų. \n\nErdviniai duomenys teikiami kaip WMS reprezentacinė paslauga."@lt-t-de-t0-mtec;
+        dct:identifier             "https://registry.gdi-de.org/id/de.hh/9a8c0797-f37b-44b5-aae0-0634ddfd6c4b"^^<http://www.w3.org/2001/XMLSchema#anyURI>;
+        dct:isPartOf               [ dct:identifier
+                          "AED6788A-050B-11D6-ABF5-005004E73215" ];
+        dct:issued                 "2014-09-30T00:00:00+02:00"^^<http://www.w3.org/2001/XMLSchema#dateTime>;
+        dct:language               <http://publications.europa.eu/resource/authority/language/DEU>;
+        dct:modified               "2017-03-24T00:00:00+01:00"^^<http://www.w3.org/2001/XMLSchema#dateTime>;
+        dct:provenance             [ rdf:type    dct:ProvenanceStatement;
+                                     rdfs:label  "keine Angabe"@de
+                                   ];
+        dct:publisher              [ rdf:type       foaf:Organization;
+                                     locn:address   [ rdf:type           locn:Address;
+                                                      locn:adminUnitL1   "DEU";
+                                                      locn:adminUnitL2   "Hamburg";
+                                                      locn:postCode      "D-21109";
+                                                      locn:postName      "Hamburg";
+                                                      locn:thoroughfare  "Neuenfelder Straße 19"
+                                                    ];
+                                     foaf:homepage  <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>;
+                                     foaf:mbox      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                                     foaf:name      "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                     foaf:phone     <tel:+%2B49%2040%204%2028%2040%20-%205285>
+                                   ];
+        dct:publisher              [ rdf:type      foaf:Organization;
+                                     locn:address  [ rdf:type           locn:Address;
+                                                     locn:adminUnitL1   "DEU";
+                                                     locn:adminUnitL2   "Hamburg";
+                                                     locn:postCode      "D-21109";
+                                                     locn:postName      "Hamburg";
+                                                     locn:thoroughfare  "Neuenfelder Straße 19"
+                                                   ];
+                                     foaf:mbox     <mailto:Bernd-Ulrich.Netz@bukea.hamburg.de>;
+                                     foaf:name     "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                     foaf:phone    <tel:+%2B49%2040%204%2028%2040%20-%202420%20%2F%203489>
+                                   ];
+        dct:spatial                [ rdf:type      dct:Location;
+                                     rdfs:seeAlso  <https://registry.gdi-de.org/id/de.bund.bkg.regschluessel/02>
+                                   ];
+        dct:spatial                [ rdf:type   dct:Location;
+                                     dcat:bbox  "POLYGON((8.420551 53.964153,10.326304 53.964153,10.326304 53.394985,8.420551 53.394985,8.420551 53.964153))"^^<http://replacement.io/ont/geosparql#wktLiteral>
+                                   ];
+        dct:spatial                [ rdf:type      dct:Location;
+                                     rdfs:seeAlso  [ rdf:type        skos:Concept;
+                                                     skos:prefLabel  "Hamburg (02)"@de
+                                                   ]
+                                   ];
+        dct:title                  "Dirvožemio mokslo horizontai"@lt-t-de-t0-mtec , "Talajtudományi horizontok"@hu-t-de-t0-mtec , "Хоризонти на науката за почвите"@bg-t-de-t0-mtec , "Soil science horizons"@en-t-de-t0-mtec , "Horyzonty nauki o glebie"@pl-t-de-t0-mtec , "Horizontes científicos del suelo"@es-t-de-t0-mtec , "Mullateaduse horisondid"@et-t-de-t0-mtec , "Físeanna eolaíochta ithreach"@ga-t-de-t0-mtec , "Markvetenskapens horisonter"@sv-t-de-t0-mtec , "Maaperätieteen horisontit"@fi-t-de-t0-mtec , "Orizzonti tax-xjenza tal-ħamrija"@mt-t-de-t0-mtec , "Horizonty pôdnej vedy"@sk-t-de-t0-mtec , "Horizons de pédologie"@fr-t-de-t0-mtec , "Horizontes científicos do solo"@pt-t-de-t0-mtec , "Bodenkunde-Horizonte"@de , "Obzory vědy o půdě"@cs-t-de-t0-mtec , "Ορίζοντες της επιστήμης του εδάφους"@el-t-de-t0-mtec , "Augsnes zinātnes apvāršņi"@lv-t-de-t0-mtec , "Bodemwetenschapshorizonten"@nl-t-de-t0-mtec , "Orizzonti della scienza del suolo"@it-t-de-t0-mtec , "Obzorja znanosti o tleh"@sl-t-de-t0-mtec , "Ґрунтознавчі горизонти"@uk-t-de-t0-mtec , "Jordbundsvidenskabens horisonter"@da-t-de-t0-mtec , "Orizonturile științei solului"@ro-t-de-t0-mtec , "Obzori znanosti o tlu"@hr-t-de-t0-mtec;
+        dcat:contactPoint          [ rdf:type            vcard:Organization;
+                                     vcard:fn            "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                     vcard:hasAddress    [ rdf:type              vcard:Address;
+                                                           vcard:country-name    "DEU";
+                                                           vcard:locality        "Hamburg";
+                                                           vcard:postal-code     "D-21109";
+                                                           vcard:region          "Hamburg";
+                                                           vcard:street-address  "Neuenfelder Straße 19"
+                                                         ];
+                                     vcard:hasEmail      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                                     vcard:hasTelephone  <tel:+494042840-5285>;
+                                     vcard:hasURL        <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>
+                                   ];
+        dcat:distribution          <http://data.europa.eu/88u/distribution/72628622-0944-4c4a-9719-b32331add8de> , <http://data.europa.eu/88u/distribution/332eddb8-d07b-4515-94dd-3281c701f02f> , <http://data.europa.eu/88u/distribution/7b66c5b0-d8af-4064-b924-e11f955ce148> , <http://data.europa.eu/88u/distribution/166fabdf-3b5b-4b4e-85e4-0c202fd86562> , <http://data.europa.eu/88u/distribution/d7fdb40a-2387-448a-825f-56a0736b0191> , <http://data.europa.eu/88u/distribution/c901b726-b976-4124-9736-53910d2524f3> , <http://data.europa.eu/88u/distribution/431e6368-a54f-4cf0-a2cb-9a8407dd9cb6> , <http://data.europa.eu/88u/distribution/b9a5f8da-7ef3-4d4e-aab6-ceeaa38faa1c>;
+        dcat:keyword               "hmbtg"@de , "ENVI"@de , "opendata"@de , "HVD"@de , "Umweltdaten"@de;
+        dcat:theme                 <https://sns.uba.de/umthes/TH_00005281> , <https://sns.uba.de/umthes/TH_00005304> , <https://sns.uba.de/umthes/TH_00005320> , <https://sns.uba.de/umthes/TH_00005385> , <https://sns.uba.de/umthes/TH_00015764> , <https://sns.uba.de/umthes/TH_00005351> , <https://sns.uba.de/umthes/TH_00005347> , <https://sns.uba.de/umthes/TH_00005357> , <https://sns.uba.de/umthes/TH_00050470> , <https://sns.uba.de/umthes/TH_00040757> , <https://sns.uba.de/umthes/TH_00005452> , <https://sns.uba.de/umthes/TH_00050527> , <https://sns.uba.de/umthes/TH_00030522> , <https://sns.uba.de/umthes/TH_00050530> , <https://sns.uba.de/umthes/TH_00005436> , <https://sns.uba.de/umthes/TH_00040588> , <https://sns.uba.de/umthes/TH_00040754> , <https://sns.uba.de/umthes/TH_00005365> , <https://sns.uba.de/umthes/TH_00017425> , <https://sns.uba.de/umthes/TH_00005312> , <https://sns.uba.de/umthes/TH_00005279> , <https://sns.uba.de/umthes/TH_00005318> , <https://sns.uba.de/umthes/TH_00020664> , <https://sns.uba.de/umthes/TH_00005423> , <https://sns.uba.de/umthes/TH_00022012> , <https://sns.uba.de/umthes/TH_00030837> , <https://sns.uba.de/umthes/TH_00005435> , <https://sns.uba.de/umthes/TH_00049565> , <https://sns.uba.de/umthes/TH_00005282> , <https://sns.uba.de/umthes/TH_00004852> , <https://sns.uba.de/umthes/TH_00014073> , <https://sns.uba.de/umthes/TH_00005324> , <http://publications.europa.eu/resource/authority/data-theme/TECH> , <https://sns.uba.de/umthes/TH_00005406> , <https://sns.uba.de/umthes/TH_00005314> , <https://sns.uba.de/umthes/TH_00025123> , <https://sns.uba.de/umthes/TH_00030696> , <https://sns.uba.de/umthes/TH_00010072> , <https://sns.uba.de/umthes/TH_00046364> , <https://sns.uba.de/umthes/TH_00005403> , <https://sns.uba.de/umthes/TH_00030281> , <https://sns.uba.de/umthes/TH_00030108> , <https://sns.uba.de/umthes/TH_00030991> , <https://sns.uba.de/umthes/TH_00019012> , <https://sns.uba.de/umthes/TH_00002330> , <https://sns.uba.de/umthes/TH_00018466> , <https://sns.uba.de/umthes/TH_00012943>;
+        dcat:theme                 [ rdf:type        skos:Concept;
+                                     skos:inScheme   [ rdf:type    skos:ConceptScheme;
+                                                       dct:issued  "2013-08-02"^^<http://www.w3.org/2001/XMLSchema#date>;
+                                                       dct:title   "HmbTG-Informationsgegenstand"@de
+                                                     ];
+                                     skos:prefLabel  "hmbtg_10_messungen"
+                                   ];
+        prov:qualifiedAttribution  [ rdf:type      prov:Attribution;
+                                     dcat:hadRole  <http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/processor>;
+                                     prov:agent    [ rdf:type       foaf:Organization;
+                                                     locn:address   [ rdf:type           locn:Address;
+                                                                      locn:adminUnitL1   "DEU";
+                                                                      locn:adminUnitL2   "Hamburg";
+                                                                      locn:postCode      "D-21109";
+                                                                      locn:postName      "Hamburg";
+                                                                      locn:thoroughfare  "Neuenfelder Straße 19"
+                                                                    ];
+                                                     foaf:homepage  <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>;
+                                                     foaf:mbox      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                                                     foaf:name      "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                                     foaf:phone     <tel:+%2B49%2040%204%2028%2040%20-%205285>
+                                                   ]
+                                   ];
+        prov:qualifiedAttribution  [ rdf:type      prov:Attribution;
+                                     dcat:hadRole  <http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/publisher>;
+                                     prov:agent    [ rdf:type       foaf:Organization;
+                                                     locn:address   [ rdf:type           locn:Address;
+                                                                      locn:adminUnitL1   "DEU";
+                                                                      locn:adminUnitL2   "Hamburg";
+                                                                      locn:postCode      "D-21109";
+                                                                      locn:postName      "Hamburg";
+                                                                      locn:thoroughfare  "Neuenfelder Straße 19"
+                                                                    ];
+                                                     foaf:homepage  <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>;
+                                                     foaf:mbox      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                                                     foaf:name      "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                                     foaf:phone     <tel:+%2B49%2040%204%2028%2040%20-%205285>
+                                                   ]
+                                   ];
+        prov:qualifiedAttribution  [ rdf:type      prov:Attribution;
+                                     dcat:hadRole  <http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/pointOfContact>;
+                                     prov:agent    [ rdf:type       foaf:Organization;
+                                                     locn:address   [ rdf:type           locn:Address;
+                                                                      locn:adminUnitL1   "DEU";
+                                                                      locn:adminUnitL2   "Hamburg";
+                                                                      locn:postCode      "D-21109";
+                                                                      locn:postName      "Hamburg";
+                                                                      locn:thoroughfare  "Neuenfelder Straße 19"
+                                                                    ];
+                                                     foaf:homepage  <https://www.hamburg.de/politik-und-verwaltung/behoerden/bukea/themen/boden-und-geologie/bodenschutz>;
+                                                     foaf:mbox      <mailto:bodenschutz-altlasten@bukea.hamburg.de>;
+                                                     foaf:name      "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                                     foaf:phone     <tel:+%2B49%2040%204%2028%2040%20-%205285>
+                                                   ]
+                                   ];
+        prov:qualifiedAttribution  [ rdf:type      prov:Attribution;
+                                     dcat:hadRole  <http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/publisher>;
+                                     prov:agent    [ rdf:type      foaf:Organization;
+                                                     locn:address  [ rdf:type           locn:Address;
+                                                                     locn:adminUnitL1   "DEU";
+                                                                     locn:adminUnitL2   "Hamburg";
+                                                                     locn:postCode      "D-21109";
+                                                                     locn:postName      "Hamburg";
+                                                                     locn:thoroughfare  "Neuenfelder Straße 19"
+                                                                   ];
+                                                     foaf:mbox     <mailto:Bernd-Ulrich.Netz@bukea.hamburg.de>;
+                                                     foaf:name     "Behörde für Umwelt, Klima, Energie und Agrarwirtschaft (BUKEA)";
+                                                     foaf:phone    <tel:+%2B49%2040%204%2028%2040%20-%202420%20%2F%203489>
+                                                   ]
+                                   ];
+        foaf:isPrimaryTopicOf      []  .
+
+<https://registry.gdi-de.org/id/de.bund.bkg.regschluessel/02>
+        rdf:type        skos:Concept;
+        skos:prefLabel  "020000000000"@de .
+
+<http://data.europa.eu/88u/distribution/d7fdb40a-2387-448a-825f-56a0736b0191>
+        rdf:type            dcat:Distribution;
+        dct:accessRights    <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:format          <http://publications.europa.eu/resource/authority/file-type/WMS_SRVC>;
+        dct:identifier      "\"Dienst \\\"WMS Bodenkunde Horizonte Profile\\\" (GetCapabilities)\"@de";
+        dct:license         [ rdf:type    dct:LicenseDocument;
+                              rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                            ];
+        dct:license         [ rdf:type    dct:LicenseDocument;
+                              rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                            ];
+        dct:title           "Dienst \"WMS Bodenkunde Horizonte Profile\" (GetCapabilities)"@de;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessService  [ rdf:type                  dcat:DataService;
+                              <http://data.europa.eu/930/serviceProtocol>
+                                      <http://www.opengis.net/def/serviceType/ogc/wms>;
+                              <http://data.europa.eu/930/serviceType>
+                                      <http://inspire.ec.europa.eu/metadata-codelist/SpatialDataServiceType/view>;
+                              dct:title                 "Dienst \"WMS Bodenkunde Horizonte Profile\" (GetCapabilities)"@de;
+                              dcat:endpointDescription  <https://geodienste.hamburg.de/HH_WMS_Bodenkunde?SERVICE=WMS&REQUEST=GetCapabilities>;
+                              dcat:endpointURL          <https://geodienste.hamburg.de/HH_WMS_Bodenkunde>
+                            ];
+        dcat:accessURL      <https://geodienste.hamburg.de/HH_WMS_Bodenkunde?SERVICE=WMS&REQUEST=GetCapabilities> .
+
+<http://publications.europa.eu/resource/authority/file-type/WFS_SRVC>
+        rdf:type  dct:MediaType .
+
+<http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/publisher>
+        rdf:type  dcat:Role .
+
+<http://www.opengis.net/def/crs/EPSG/0/25832>
+        rdf:type  dct:Standard;
+        dct:type  <http://inspire.ec.europa.eu/metadata-codelist/SpatialReferenceSystem> .
+
+<http://data.europa.eu/88u/distribution/166fabdf-3b5b-4b4e-85e4-0c202fd86562>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:identifier    "\"Download Bodenkunde Horizonte Profile (GeoJSON)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:title         "Prenesi profil obzorja znanosti o tleh (GeoJSON)"@sl-t-de-t0-mtec , "Завантажити профіль горизонту грунту (GeoJSON)"@uk-t-de-t0-mtec , "Perfil da Ciência do Solo Horizonte (GeoJSON)"@pt-t-de-t0-mtec , "Lataa Soil Science Horizonte -profiili (GeoJSON)"@fi-t-de-t0-mtec , "Software vergelijkbaar met Soil Science Horizonte Profile (GeoJSON):"@nl-t-de-t0-mtec , "Lejupielādēt Soil Science Horizonte Profile (GeoJSON)"@lv-t-de-t0-mtec , "Scarica il profilo orizzontale della scienza del suolo (GeoJSON)"@it-t-de-t0-mtec , "Télécharger Profils d'horizons pédologiques (GeoJSON)"@fr-t-de-t0-mtec , "Download Bodenkunde Horizonte Profile (GeoJSON)"@de , "Ladda ner Horisontell profil för markvetenskap (GeoJSON)"@sv-t-de-t0-mtec , "Download Soil Science Horizonte Profile (GeoJSON)"@en-t-de-t0-mtec , "Ke stažení Soil Science Horizonte Profile (GeoJSON)"@cs-t-de-t0-mtec , "Descargar Perfil de Soil Science Horizonte (GeoJSON)"@es-t-de-t0-mtec , "Κατεβάστε το Soil Science Horizonte Profile (GeoJSON)"@el-t-de-t0-mtec , "Download Jordvidenskab Horizonte-profil (GeoJSON)"@da-t-de-t0-mtec , "Niżżel il-Profil Orizzontat tax-Xjenza tal-Ħamrija (GeoJSON)"@mt-t-de-t0-mtec , "Изтегляне на Хоризонтален профил на науките за почвите (GeoJSON)"@bg-t-de-t0-mtec , "Soil Science Horizonte Profile (GeoJSON) - Descărcare gratuită pentru Android"@ro-t-de-t0-mtec , "Íoslódáil Eolaíocht Ithreach Próifíl Horizonte (GeoJSON)"@ga-t-de-t0-mtec , "A Soil Science Horizonte Profile (GeoJSON) letöltése"@hu-t-de-t0-mtec , "Programinė įranga, panaši į Soil Science Horizonte Profile (GeoJSON):"@lt-t-de-t0-mtec , "Softvér podobný softvéru Soil Science Horizonte Profile (GeoJSON):"@sk-t-de-t0-mtec , "Preuzimanje Soil Science Horizonte Profile (GeoJSON)"@hr-t-de-t0-mtec , "Laadige alla mullateaduse horisontaalprofiil (GeoJSON)"@et-t-de-t0-mtec , "Pobierz Soil Science Horizonte Profile (GeoJSON)"@pl-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://geodienste.hamburg.de/download?url=https://geodienste.hamburg.de/HH_WFS_Bodenkunde&f=json> .
+
+<http://data.europa.eu/88u/distribution/b9a5f8da-7ef3-4d4e-aab6-ceeaa38faa1c>
+        rdf:type            dcat:Distribution;
+        dct:accessRights    <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:format          <http://publications.europa.eu/resource/authority/file-type/WFS_SRVC>;
+        dct:identifier      "\"Dienst \\\"WFS Bodenkunde Horizonte Profile\\\" (GetCapabilities)\"@de";
+        dct:license         [ rdf:type    dct:LicenseDocument;
+                              rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                            ];
+        dct:license         [ rdf:type    dct:LicenseDocument;
+                              rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                            ];
+        dct:title           "Dienst \"WFS Bodenkunde Horizonte Profile\" (GetCapabilities)"@de;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessService  [ rdf:type                  dcat:DataService;
+                              <http://data.europa.eu/930/serviceProtocol>
+                                      <http://www.opengis.net/def/serviceType/ogc/wfs>;
+                              <http://data.europa.eu/930/serviceType>
+                                      <http://inspire.ec.europa.eu/metadata-codelist/SpatialDataServiceType/download>;
+                              dct:title                 "Dienst \"WFS Bodenkunde Horizonte Profile\" (GetCapabilities)"@de;
+                              dcat:endpointDescription  <https://geodienste.hamburg.de/HH_WFS_Bodenkunde?SERVICE=WFS&REQUEST=GetCapabilities>;
+                              dcat:endpointURL          <https://geodienste.hamburg.de/HH_WFS_Bodenkunde>
+                            ];
+        dcat:accessURL      <https://geodienste.hamburg.de/HH_WFS_Bodenkunde?SERVICE=WFS&REQUEST=GetCapabilities> .
+
+<http://data.europa.eu/88u/distribution/332eddb8-d07b-4515-94dd-3281c701f02f>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:description   "The XSD file is the schema description for locally stored GML files that can be downloaded from the Download WFS."@en-t-de-t0-mtec , "Το αρχείο XSD είναι η περιγραφή σχήματος για τοπικά αποθηκευμένα αρχεία GML που μπορούν να μεταφορτωθούν από το Download WFS."@el-t-de-t0-mtec , "XSD datoteka je opis sheme za lokalno pohranjene GML datoteke koje se mogu preuzeti s Preuzmi WFS."@hr-t-de-t0-mtec , "O arquivo XSD é a descrição do esquema para arquivos GML armazenados localmente que podem ser baixados do Download WFS."@pt-t-de-t0-mtec , "XSD-filen är schemabeskrivningen för lokalt lagrade GML-filer som kan hämtas från Download WFS."@sv-t-de-t0-mtec , "Fișierul XSD este descrierea schemei pentru fișierele GML stocate local care pot fi descărcate din Descărcați WFS."@ro-t-de-t0-mtec , "Het XSD-bestand is de schemabeschrijving voor lokaal opgeslagen GML-bestanden die kunnen worden gedownload van de Download WFS."@nl-t-de-t0-mtec , "Soubor XSD je popis schématu pro lokálně uložené soubory GML, které lze stáhnout ze souboru Download WFS."@cs-t-de-t0-mtec , "Il file XSD è la descrizione dello schema per i file GML memorizzati localmente che possono essere scaricati dal Download WFS."@it-t-de-t0-mtec , "Plik XSD jest opisem schematu dla lokalnie przechowywanych plików GML, które można pobrać z WFS Download."@pl-t-de-t0-mtec , "XSD-fail on kohalikult salvestatud GML-failide skeemi kirjeldus, mida saab alla laadida WFS-i allalaadimisest."@et-t-de-t0-mtec , "Az XSD fájl a séma leírása a helyileg tárolt GML fájloknak, amelyek letölthetők a Download WFS-ből."@hu-t-de-t0-mtec , "Die XSD-Datei ist die Schema-Beschreibung für lokal gespeicherte GML-Dateien, die über den Download-WFS herunter geladen werden können."@de , "Is é an comhad XSD an cur síos scéimre do chomhaid GML stóráil go háitiúil is féidir a íoslódáil ón WFS Íosluchtaigh."@ga-t-de-t0-mtec , "Il-fajl XSD huwa d-deskrizzjoni tal-iskema għall-fajls GML maħżuna lokalment li jistgħu jitniżżlu mid-WFS tat-Tniżżil."@mt-t-de-t0-mtec , "Datoteka XSD je opis sheme za lokalno shranjene datoteke GML, ki jih je mogoče prenesti iz aplikacije Download WFS."@sl-t-de-t0-mtec , "XSD failas yra vietoje saugomų GML failų, kuriuos galima atsisiųsti iš atsisiuntimo WFS, schemos aprašymas."@lt-t-de-t0-mtec , "Le fichier XSD est la description du schéma pour les fichiers GML stockés localement qui peuvent être téléchargés via le WFS de téléchargement."@fr-t-de-t0-mtec , "XSD файлът е описание на схемата за локално съхранени GML файлове, които могат да бъдат изтеглени от Изтеглете WFS."@bg-t-de-t0-mtec , "El archivo XSD es la descripción del esquema para los archivos GML almacenados localmente que se pueden descargar desde Download WFS."@es-t-de-t0-mtec , "XSD-файл — це опис схеми локально збережених файлів GML, які можна завантажити за допомогою Завантажити WFS."@uk-t-de-t0-mtec , "Súbor XSD je popis schémy pre lokálne uložené súbory GML, ktoré je možné stiahnuť z Download WFS."@sk-t-de-t0-mtec , "XSD fails ir shēmas apraksts lokāli saglabātiem GML failiem, kurus var lejupielādēt no lejupielādes WFS."@lv-t-de-t0-mtec , "XSD-filen er skemabeskrivelsen for lokalt lagrede GML-filer, der kan downloades fra Download WFS."@da-t-de-t0-mtec , "XSD-tiedosto on paikallisesti tallennettujen GML-tiedostojen rakennekuvaus, joka voidaan ladata Download WFS:stä."@fi-t-de-t0-mtec;
+        dct:identifier    "\"Download WFS-Schemadatei Bodenkunde-Horizonte (XSD)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:title         "Lataa WFS Schema File Soil Science Horizons (XSD) ilmaiseksi"@fi-t-de-t0-mtec , "Niżżel WFS Schema File Soil Science Horizons (XSD)"@mt-t-de-t0-mtec , "WFS Schema File Soil Science Horizons (XSD) - Vikipeedia, vaba entsüklopeedia"@et-t-de-t0-mtec , "Programinė įranga, panaši į WFS Schema File Soil Science Horizons (XSD):"@lt-t-de-t0-mtec , "Íoslódáil WFS Schema File Soil Science Horizons (XSD)"@ga-t-de-t0-mtec , "Κατεβάστε το WFS Schema File Soil Science Horizons (XSD)"@el-t-de-t0-mtec , "Brugere, der downloadede WFS Schema File Soil Science Horizons (XSD) downloadede også:"@da-t-de-t0-mtec , "Download WFS Schema File Soil Science Horizons (XSD)"@en-t-de-t0-mtec , "Download WFS-Schemadatei Bodenkunde-Horizonte (XSD)"@de , "Softvér podobný softvéru WFS Schema File Soil Science Horizons (XSD):"@sk-t-de-t0-mtec , "Descargar WFS Schema File Soil Science Horizons (XSD)"@es-t-de-t0-mtec , "Изтеглете WFS схема File Soil Science Horizons (XSD)"@bg-t-de-t0-mtec , "Télécharger le fichier schématique WFS Horizons de pédologie (XSD)"@fr-t-de-t0-mtec , "Lejupielādēt WFS Schema File Soil Science Horizons (XSD)"@lv-t-de-t0-mtec , "Software vergelijkbaar met Soil Science Horizons (XSD):"@nl-t-de-t0-mtec , "Baixar WFS Schema File Soil Science Horizons (XSD)"@pt-t-de-t0-mtec , "Stáhněte si WFS Schema File Soil Science Horizons (XSD)"@cs-t-de-t0-mtec , "A(z) WFS Schema File Soil Science Horizons (XSD) -hoz hasonló szoftverek:"@hu-t-de-t0-mtec , "Fișierele WFS sunt Fișiere de date asociate în principal cu WFS Schema File Soil Science Horizons (XSD)."@ro-t-de-t0-mtec , "Scarica il file di schema WFS Soil Science Horizons (XSD)"@it-t-de-t0-mtec , "Завантажити WFS Schema File Soil Science Horizons (XSD)"@uk-t-de-t0-mtec , "Ladda ner WFS Schemafil Markvetenskap Horisonter (XSD)"@sv-t-de-t0-mtec , "Preuzimanje WFS Schema File Soil Science Horizons (XSD)"@hr-t-de-t0-mtec , "Naložite WFS Schema File Soil Science Horizons (XSD)"@sl-t-de-t0-mtec , "Pobierz plik schematu WFS Soil Science Horizons (XSD)"@pl-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://geodienste.hamburg.de/HH_WFS_Bodenkunde?service=WFS&request=DescribeFeatureType&version=1.1.0&typename=app:bodenkunde_horizont> .
+
+<http://publications.europa.eu/resource/authority/frequency/IRREG>
+        rdf:type  dct:Frequency .
+
+<http://data.europa.eu/88u/distribution/431e6368-a54f-4cf0-a2cb-9a8407dd9cb6>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:identifier    "\"Download Bodenkunde-Horizonte, 2015-04 (GML)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:title         "Stáhnout Soil Science Horizons, 2015-04 (GML)"@cs-t-de-t0-mtec , "Download Soil Science Horizons, 2015-04 (GML)"@en-t-de-t0-mtec , "Pobierz Soil Science Horizons, 2015-04 (GML)"@pl-t-de-t0-mtec , "Изтегляне Наука за почвите хоризонти, 2015—04 (GML)"@bg-t-de-t0-mtec , "Stiahnuť softvér Soil Science Horizons, 2015-04 (GML)"@sk-t-de-t0-mtec , "Baixe Horizontes da Ciência do Solo, 2015-04 (GML)"@pt-t-de-t0-mtec , "Lataa Soil Science Horizons, 2015-04 (GML) ilmaiseksi"@fi-t-de-t0-mtec , "Κατεβάστε το Soil Science Horizons, 2015-04 (GML)"@el-t-de-t0-mtec , "Download Jordvidenskab Horisonter, 2015-04 (GML)"@da-t-de-t0-mtec , "Preuzimanje Soil Science Horizons, 2015-04 (GML)"@hr-t-de-t0-mtec , "Niżżel l-Orizzonts tax-Xjenza tal-Ħamrija, 2015-04 (GML)"@mt-t-de-t0-mtec , "Télécharger Horizons de pédologie, 2015-04 (GML)"@fr-t-de-t0-mtec , "Descargar Soil Science Horizons, 2015-04 (GML)"@es-t-de-t0-mtec , "Download Bodenkunde-Horizonte, 2015-04 (GML)"@de , "Íoslódáil Ithir Science Horizons, 2015-04 (GML)"@ga-t-de-t0-mtec , "Scarica Orizzonti scientifici del suolo, 2015-04 (GML)"@it-t-de-t0-mtec , "Dirvožemio mokslų horizontai, 2015-04 (GML)"@lt-t-de-t0-mtec , "Lae Mullateadus Horizons, 2015-04 (GML)"@et-t-de-t0-mtec , "Ladda ner Markvetenskap Horizons, 2015-04 (GML)"@sv-t-de-t0-mtec , "Lejupielādēt Augsnes zinātnes Horizons, 2015-04 (GML)"@lv-t-de-t0-mtec , "Горизонти ґрунтознавства, 2015-04 (GML)"@uk-t-de-t0-mtec , "Letöltés Soil Science Horizons, 2015-04 (GML)"@hu-t-de-t0-mtec , "Naložite Obzorja znanosti o tleh, 2015-04 (GML)"@sl-t-de-t0-mtec , "Downloaden Bodemwetenschap Horizons, 2015-04 (GML)"@nl-t-de-t0-mtec , "Descarca Știința solului Orizonturi, 2015-04 (GML)"@ro-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://daten-hamburg.de/umwelt_klima/bodenkunde_horizonte/Bodenkunde_Horizonte_HH_2015-04-09.zip> .
+
+<http://www.opengis.net/def/serviceType/ogc/wfs>
+        rdf:type  dct:Standard .
+
+<http://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole/processor>
+        rdf:type  dcat:Role .
+
+<http://data.europa.eu/88u/distribution/c901b726-b976-4124-9736-53910d2524f3>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:identifier    "\"Download Bodenkunde Horizonte Profile (CSV)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:title         "Niżżel il-Profili Orizzontali tax-Xjenza tal-Ħamrija (CSV)"@mt-t-de-t0-mtec , "Horizontální profily pro vědu o půdě (CSV)"@cs-t-de-t0-mtec , "Dirvožemio mokslo horizontalieji profiliai (CSV)"@lt-t-de-t0-mtec , "Horizontalni profili na področju znanosti o tleh (CSV)"@sl-t-de-t0-mtec , "Horizontálne profily pôdnej vedy (CSV)"@sk-t-de-t0-mtec , "Download Bodenkunde Horizonte Profile (CSV)"@de , "Soil Science Horizontal Profiles (CSV) - opinie, recenzje użytkowników, ekspertów, porównanie cen. - alaTest.pl"@pl-t-de-t0-mtec , "Preuzmite Horizontalni profili znanosti o tlu (CSV)"@hr-t-de-t0-mtec , "Ladda ner Horisontella profiler för markvetenskap (CSV)"@sv-t-de-t0-mtec , "Lejupielādēt Augsnes zinātnes horizontālie profili (CSV)"@lv-t-de-t0-mtec , "Letöltés Soil Science Horizontal Profiles (CSV)"@hu-t-de-t0-mtec , "Download Soil Science Horizontal Profiles (CSV)"@en-t-de-t0-mtec , "Lataa Soil Science Horizontal Profiles (CSV) ilmaiseksi"@fi-t-de-t0-mtec , "Perfis Horizontais da Ciência do Solo (CSV)"@pt-t-de-t0-mtec , "Download Bodemwetenschap Horizontale Profielen (CSV)"@nl-t-de-t0-mtec , "Download Jordvidenskab Horisontale profiler (CSV)"@da-t-de-t0-mtec , "Горизонтальні профілі (CSV)"@uk-t-de-t0-mtec , "Íoslódáil Próifílí Cothrománacha Eolaíochta Ithreach (CSV)"@ga-t-de-t0-mtec , "Descargar Perfiles Horizontales de Ciencias del Suelo (CSV)"@es-t-de-t0-mtec , "Soil Science Horizontal Profiles (CSV) - Descărcare pentru Android"@ro-t-de-t0-mtec , "Scarica i profili orizzontali della scienza del suolo (CSV)"@it-t-de-t0-mtec , "Laadige alla mullateaduse horisontaalsed profiilid (CSV)"@et-t-de-t0-mtec , "Изтеглете Хоризонтални профили на науките за почвите (CSV)"@bg-t-de-t0-mtec , "Κατεβάστε Οριζόντια Προφίλ Εδαφικής Επιστήμης (CSV)"@el-t-de-t0-mtec , "Télécharger Profils d'horizons pédologiques (CSV)"@fr-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://geodienste.hamburg.de/download?url=https://geodienste.hamburg.de/HH_WFS_Bodenkunde&f=csv> .
+
+<http://data.europa.eu/88u/distribution/7b66c5b0-d8af-4064-b924-e11f955ce148>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:identifier    "\"Download WFS Bodenkunde-Horizonte (GML)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:title         "Softvér podobný softvéru WFS Soil Science Horizons (GML):"@sk-t-de-t0-mtec , "Lataa WFS Soil Science Horizons (GML) ilmaiseksi"@fi-t-de-t0-mtec , "Download WFS Bodenkunde-Horizonte (GML)"@de , "Изтегляне на WFS Soil Science Horizons (GML)"@bg-t-de-t0-mtec , "Scarica WFS Soil Science Horizons (GML)"@it-t-de-t0-mtec , "Software vergelijkbaar met WFS Soil Science Horizons (GML):"@nl-t-de-t0-mtec , "WFS Soil Science Horizons (GML) - Vikipeedia, vaba entsüklopeedia"@et-t-de-t0-mtec , "Íoslódáil WFS Soil Science Horizons (GML)"@ga-t-de-t0-mtec , "Baixar WFS Soil Science Horizons (GML)"@pt-t-de-t0-mtec , "Κατεβάστε το WFS Soil Science Horizons (GML)"@el-t-de-t0-mtec , "Завантажити WFS Soil Science Horizons (GML)"@uk-t-de-t0-mtec , "Letöltés WFS Soil Science Horizons (GML)"@hu-t-de-t0-mtec , "Download WFS Jordvidenskab Horisonter (GML)"@da-t-de-t0-mtec , "Niżżel WFS Soil Science Horizons (GML) (Orizzont tax-Xjenza tal-Ħamrija tad-WFS)"@mt-t-de-t0-mtec , "Stáhněte si WFS Soil Science Horizons (GML)"@cs-t-de-t0-mtec , "Programinė įranga, panaši į WFS Soil Science Horizons (GML):"@lt-t-de-t0-mtec , "Lejupielādēt WFS Soil Science Horizons (GML)"@lv-t-de-t0-mtec , "Télécharger WFS Horizons de pédologie (GML)"@fr-t-de-t0-mtec , "Programe similare cu WFS Soil Science Horizons (GML):"@ro-t-de-t0-mtec , "Preuzimanje WFS Soil Science Horizons (GML)"@hr-t-de-t0-mtec , "Hämta WFS Soil Science Horizons (GML)"@sv-t-de-t0-mtec , "Pobierz WFS Soil Science Horizons (GML)"@pl-t-de-t0-mtec , "Naložite WFS Soil Science Horizons (GML)"@sl-t-de-t0-mtec , "Download WFS Soil Science Horizons (GML)"@en-t-de-t0-mtec , "Descargar WFS Soil Science Horizons (GML)"@es-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://geodienste.hamburg.de/HH_WFS_Bodenkunde?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&typename=app:bodenkunde_horizont,app:bodenkunde_profil> .
+
+<http://publications.europa.eu/resource/authority/file-type/WMS_SRVC>
+        rdf:type  dct:MediaType .
+
+<http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>
+        rdf:type  dct:RightsStatement .
+
+<http://www.opengis.net/def/serviceType/ogc/wms>
+        rdf:type  dct:Standard .
+
+<http://data.europa.eu/88u/distribution/72628622-0944-4c4a-9719-b32331add8de>
+        rdf:type          dcat:Distribution;
+        dct:accessRights  <http://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess/noLimitations>;
+        dct:identifier    "\"Download Bodenkunde-Horizonte, 2014-09 (GML)\"@de";
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Datenlizenz Deutschland Namensnennung 2.0"@de
+                          ];
+        dct:license       [ rdf:type    dct:LicenseDocument;
+                            rdfs:label  "Quellenvermerk: Freie und Hansestadt Hamburg, Behörde für Umwelt und Energie"@de
+                          ];
+        dct:title         "Download Bodenkunde-Horizonte, 2014-09 (GML)"@de , "Pobierz Soil Science Horizons, 2014-09 (GML)"@pl-t-de-t0-mtec , "Prenesi Obzorja znanosti o tleh, 2014-09 (GML)"@sl-t-de-t0-mtec , "Downloaden Bodemwetenschap Horizons, 2014-09 (GML)"@nl-t-de-t0-mtec , "Κατεβάστε το Soil Science Horizons, 2014-09 (GML)"@el-t-de-t0-mtec , "Горизонти ґрунтознавства, 2014-09 (GML)"@uk-t-de-t0-mtec , "Íoslódáil Soil Science Horizons, 2014-09 (GML)"@ga-t-de-t0-mtec , "Изтегляне Наука за почвите хоризонти, 2014—09 (GML)"@bg-t-de-t0-mtec , "Baixe Horizontes da Ciência do Solo, 2014-09 (GML)"@pt-t-de-t0-mtec , "Preuzimanje Soil Science Horizons, 2014-09 (GML)"@hr-t-de-t0-mtec , "Stáhnout Soil Science Horizons, 2014-09 (GML)"@cs-t-de-t0-mtec , "Lae Mullateadus Horizons, 2014-09 (GML)"@et-t-de-t0-mtec , "Télécharger Horizons de pédologie, 2014-09 (GML)"@fr-t-de-t0-mtec , "Ladda ner Markvetenskap Horizons, 2014-09 (GML)"@sv-t-de-t0-mtec , "Stiahnuť softvér Soil Science Horizons, 2014-09 (GML)"@sk-t-de-t0-mtec , "Download Jordvidenskab Horisonter, 2014-09 (GML)"@da-t-de-t0-mtec , "Dirvožemio mokslų horizontai, 2014-09 (GML)"@lt-t-de-t0-mtec , "Descarca Știința solului Orizonturi, 2014-09 (GML)"@ro-t-de-t0-mtec , "Scarica Orizzonti scientifici del suolo, 2014-09 (GML)"@it-t-de-t0-mtec , "Lejupielādēt Soil Science Horizons, 2014-09 (GML)"@lv-t-de-t0-mtec , "Download Soil Science Horizons, 2014-09 (GML)"@en-t-de-t0-mtec , "Download Soil Science Horizons (Orizzont tax-Xjenza tal-Ħamrija), 2014-09 (GML)"@mt-t-de-t0-mtec , "Lataa Soil Science Horizons, 2014-09 (GML) ilmaiseksi"@fi-t-de-t0-mtec , "Descargar Soil Science Horizons, 2014-09 (GML)"@es-t-de-t0-mtec , "Letöltés Soil Science Horizons, 2014-09 (GML)"@hu-t-de-t0-mtec;
+        <http://www.w3.org/2011/content#characterEncoding>
+                "UTF-8";
+        dcat:accessURL    <https://daten-hamburg.de/umwelt_klima/bodenkunde_horizonte/Bodenkunde_Horizonte_HH_2014-09-15.zip> .
