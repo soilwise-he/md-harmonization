@@ -23,7 +23,7 @@ Usage:
 
 """
 
-import os, sys, yaml, json
+import os, sys, yaml, json, copy
 import hashlib
 import logging
 import traceback
@@ -43,17 +43,19 @@ load_dotenv()
 
 # Logger configuration
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
+
+logging.getLogger("pygeometa").setLevel(logging.DEBUG)
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///soilwise.db')
 SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
 SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
 TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
-PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')  # comma-separated list of source names to process; empty = all
-RECORDS_PER_PAGE = 100
+
+
 
 if not DATABASE_URL:
     logger.error('DATABASE_URL not set.')
@@ -95,25 +97,32 @@ async def create_tables():
     # (and the `databases` library) do not allow multiple SQL commands in a single prepared statement.
     ddl = f"""
     CREATE TABLE IF NOT EXISTS {qn('records')} (
-        identifier TEXT PRIMARY KEY,
-        md5_hash TEXT UNIQUE,
+        identifier TEXT,
+        source TEXT, 
+        title TEXT,
+        abstract TEXT,
         language TEXT,
         edition TEXT,
         format TEXT,
         type TEXT,
-        RevisionDate TEXT,
-        CreationDate TEXT,
-        PublicationDate TEXT,
+        revisiondate timestamp without time zone,
+        creationdate timestamp without time zone,
+        publicationdate timestamp without time zone,
         resolution TEXT,
-        AccessConstraints TEXT,
+        denominator TEXT,
+        accessconstraints TEXT,
         license TEXT,
         rights TEXT,
         lineage TEXT,
-        spatial_coverage TEXT,
-        temporal_coverage TEXT,
-        title TEXT,
-        abstract TEXT,
-        raw_mcf TEXT
+        spatial TEXT,
+        spatial_desc TEXT,
+        temporal_start timestamp without time zone,
+        temporal_end timestamp without time zone,
+        thumbnail TEXT,
+        md5_hash TEXT,
+        raw_mcf TEXT,
+        PRIMARY KEY (identifier, source),
+        UNIQUE (md5_hash)
     );
 
     CREATE TABLE IF NOT EXISTS {qn('records_failed')} (
@@ -124,11 +133,22 @@ async def create_tables():
     CONSTRAINT records_failed_pkey PRIMARY KEY (hash)
     );
 
+    CREATE TABLE IF NOT EXISTS {qn('records_processed')} (
+    identifier text,
+    hash text NOT NULL,
+    source text,
+    final_id text,
+    mode text,
+    date timestamp without time zone,
+    CONSTRAINT records_processed_pkey PRIMARY KEY (hash)
+    );
+    
     CREATE TABLE IF NOT EXISTS {qn('person')} (
         id {id_def},
         name TEXT,
+        alias TEXT,
         email TEXT,
-        orchid TEXT,
+        orcid TEXT,
         UNIQUE(id)
     );
 
@@ -151,7 +171,7 @@ async def create_tables():
         id {id_def},
         fk_organization INTEGER REFERENCES {qn('organization')}(id) ON DELETE CASCADE,
         fk_person INTEGER REFERENCES {qn('person')}(id) ON DELETE CASCADE,
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT,
         role TEXT,
         position TEXT,
         UNIQUE(id)
@@ -167,13 +187,13 @@ async def create_tables():
 
     CREATE TABLE IF NOT EXISTS {qn('record_subject')} (
         id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT,
         subject_id INTEGER REFERENCES {qn('subjects')}(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS {qn('attributes')} (
         id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT,
         name TEXT,
         title TEXT,
         url TEXT,
@@ -183,44 +203,72 @@ async def create_tables():
 
     CREATE TABLE IF NOT EXISTS {qn('relations')} (
         id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT,
         identifier TEXT,
         scheme TEXT,
         type TEXT
     );
 
     CREATE TABLE IF NOT EXISTS {qn('sources')} (
-        id {id_def},
-        name TEXT UNIQUE,
+        name TEXT PRIMARY KEY,
         description TEXT
     );
 
     CREATE TABLE IF NOT EXISTS {qn('record_sources')} (
-        id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
-        fk_source INTEGER REFERENCES {qn('sources')}(id) ON DELETE CASCADE
+        record_id TEXT,
+        fk_source TEXT REFERENCES {qn('sources')}(name) ON DELETE CASCADE,
+        PRIMARY KEY (record_id, fk_source)
     );
 
     CREATE TABLE IF NOT EXISTS {qn('record_in_project')} (
         id {id_def},
-        record_id TEXT UNIQUE REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT UNIQUE,
         project TEXT
     );    
 
     CREATE TABLE IF NOT EXISTS {qn('alternate_identifiers')} (
-        id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
-        alt_identifier TEXT
+        record_id TEXT,
+        alt_identifier TEXT,
+        scheme TEXT,
+        PRIMARY KEY (record_id, alt_identifier)
     );
 
     CREATE TABLE IF NOT EXISTS {qn('distributions')} (
         id {id_def},
-        record_id TEXT REFERENCES {qn('records')}(identifier) ON DELETE CASCADE,
+        record_id TEXT,
         name TEXT,
         format TEXT,
         url TEXT,
         description TEXT 
     );
+
+    CREATE TABLE IF NOT EXISTS {qn('augments')} (
+        record_id text,
+        property text,
+        value text,
+        process text,
+        date timestamp with time zone DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS {qn('augment_status')} (
+        record_id text,
+        status text,
+        process text,
+        date timestamp with time zone DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS metadata.employment
+    (
+    person_id int NOT NULL,
+    organization_id int NOT NULL,
+    role text,
+    start_date timestamp without time zone,
+    end_date timestamp without time zone,
+    source text,
+    date timestamp without time zone DEFAULT now(),
+    PRIMARY KEY (person_id, organization_id)
+    );
+
     """
 
     # Split into individual statements and execute one by one
@@ -239,108 +287,205 @@ async def create_tables():
     logger.info('Ensured tables (prefix=%s)', SCHEMA_PREFIX)
 
 
-async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str, source_md5: Optional[str], source: str, project: str) -> str:
-    # map MCF -> record fields
-    identifier = mcf.get('metadata',{}).get('identifier') or fk_sourceentifier
-    language = mcf.get('metadata',{}).get('language','')
-    edition = mcf.get('identification',{}).get('edition','')
-    fmt = mcf.get('identification',{}).get('format','')
-    typ = mcf.get('identification',{}).get('type','')
-    for tp,dt in (mcf.get('identification',{}).get('dates',{}) or {}).items():
-        if tp == 'creation':
-            cre = parse_date(dt)
-        elif tp == 'modification':
-            rev = parse_date(dt)
-        elif tp == 'publication':
-            pub = parse_date(dt)
-    rev = mcf.get('identification',{}).get('RevisionDate','') 
-    cre = mcf.get('identification',{}).get('CreationDate','')
-    pub = mcf.get('identification',{}).get('PublicationDate','') 
-    resolution = mcf.get('identification',{}).get('resolution','')
-    access_constraints = intl_str(mcf.get('identification',{}).get('AccessConstraints',''))
-    license = intl_str(mcf.get('identification',{}).get('license',''))
-    rights = intl_str(mcf.get('identification',{}).get('rights',''))
-    lineage = intl_str(mcf.get('identification',{}).get('lineage',''))
-    spatial = mcf.get('identification',{}).get('spatial_coverage','') 
-    temporal = mcf.get('identification',{}).get('temporal_coverage','') 
-    title = intl_str(mcf.get('identification',{}).get('title',''))
-    abstract = intl_str(mcf.get('identification',{}).get('abstract',''))
+async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_md5: Optional[str], source: str, project: str) -> str:
 
-    # deduplicate: prefer identifier, else md5
-    if identifier:
-        exists = await database.fetch_one(f"SELECT identifier FROM {qn('records')} WHERE identifier = :identifier", values={'identifier': identifier})
-        if not exists: # deduplication (see if identifier matches with alt-identifier of other record) # todo: see which is the main identifier, prefer doi
-            exists2 = await database.fetch_one(f"SELECT record_id FROM {qn('alternate_identifiers')} WHERE alt_identifier = :identifier", values={'identifier': identifier})
-            if exists2:
-                exists = exists2
-                # add record-source relation, fails if already exists
-                await upsert_source(exists['identifier'], source)
-        if exists:    
-            logger.info('Record with identifier %s exists (%s), returning existing', identifier, exists['identifier'])
-            return exists['identifier']
+    # record (version) already exists? -> insert or update or skip
+    # if md5 is the same, skip; if md5 is different, update record with new metadata and md5
+    # todo: problematic if metadata content for this id is updated by secondary processes (e.g. augmentations) 
+    # after initial insert, as this will cause the md5 to differ and the record to be updated again on next harvest, 
+    # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
+    # md5 for stored metadata (after augmentation).
+    modus = 'insert'
+    exists = await database.fetch_one(f"""
+            SELECT identifier, source, md5_hash FROM {qn('records')} 
+            WHERE identifier = :identifier""", 
+            values={'identifier': record_id})
+    if exists:
+        if exists['md5_hash'] == source_md5:
+            logger.info(f'Record with identifier {source}:{record_id}, returning existing')
+            return exists['identifier'] # skip
+        elif exists['source'] != source:
+            logger.warning(f'Conflict for {source}:{record_id} with existing record from different source {exists["source"]}, skipping update to avoid overwriting data from other source')
+            return exists['identifier'] # skip
+        else:   
+            logger.info(f'Newer record for {source}:{record_id} exists, updating')
+            modus = 'update' # update
 
-    res = await database.fetch_one(
-        f"INSERT INTO {qn('records')} (identifier, md5_hash, language, edition, format, type, RevisionDate, CreationDate, PublicationDate, resolution, AccessConstraints, license, rights, lineage, spatial_coverage, temporal_coverage, title, abstract, raw_mcf) VALUES (:identifier, :md5, :language, :edition, :format, :type, :RevisionDate, :CreationDate, :PublicationDate, :resolution, :AccessConstraints, :license, :rights, :lineage, :spatial_coverage, :temporal_coverage, :title, :abstract, :raw_mcf) RETURNING identifier",
-        values={
-            'identifier': identifier,
-            'md5': source_md5,
-            'language': language,
-            'edition': edition,
-            'format': fmt,
-            'type': typ,
-            'RevisionDate': rev,
-            'CreationDate': cre,
-            'PublicationDate': pub,
-            'resolution': resolution,
-            'AccessConstraints': access_constraints,
-            'license': license,
-            'rights': rights,
-            'lineage': lineage,
-            'spatial_coverage': spatial,
-            'temporal_coverage': temporal,
-            'title': title,
-            'abstract': abstract,
-            'raw_mcf': json.dumps(mcf, default=str)
-        }
-    )
-    record_id = res['identifier']
 
-    # add new source reference
-    await upsert_source(identifier, source)
+    # process mcf
+    mmd_= mcf.get('metadata',{})
+    mid_= mcf.get('identification',{})
+    mci_= mcf.get('content_info',{})
+    language = intl_str(mmd_.get('language',mid_.get('language','')))
+    edition = mid_.get('edition','')
+    fmt = mid_.get('format','')
+    typ = mmd_.get('hierarchylevel','')
+    dts = {"creation": None,
+           "publication": None,
+           "modification": None}
+    for tp,dt in mid_.get('dates',{}).items():
+        dts[tp] = parse_date(dt) 
+ 
+    denominator=''
+    resolution=''
+    if 'denominators' in mci_ and isinstance(mci_['denominators'],list):
+        denominator = ','.join(mci_.get('denominators'))
+    if 'resolution' in mci_ and isinstance(mci_['resolution'],list):
+        resolution = ','.join([f.get('distance') for f in mci_.get('resolution') if 'distance' in f and f['distance'] not in [None,'']])
 
-    # set project
-    await upsert_project(record_id, project)
+    accessconstraints = intl_str(mid_.get('accessconstraints',''))
+    license = intl_str(mid_.get('license',{}).get('url',mid_.get('license',{}).get('name')))
+    rights = intl_str(mid_.get('rights',''))
+    
+    lineage = intl_str(mcf.get('dataquality',{}).get('lineage',''))
+    thumbnail = mcf.get('identification',{}).get('browsegraphic','')
+    first_spatial_extent = next(iter(mid_.get('extents',{}).get('spatial',[])), {})
+    spatial = str(first_spatial_extent.get('bbox',first_spatial_extent.get('description',''))) 
+    first_temporal_extent = next(iter(mid_.get('extents',{}).get('temporal',[])), {})
+    temporal_start = parse_date(first_temporal_extent.get('begin',None))
+    temporal_end = parse_date(first_temporal_extent.get('end',None))
+    title = intl_str(mid_.get('title',''))
+    abstract = intl_str(mid_.get('abstract',''))
 
-    # alternate identifiers
-    alts = []
-    if mcf.get('identification').get('dataseturi') not in (None,''):
-        alts.append({'alt': mcf.get('identification').get('dataseturi'), 'schema': ''})
 
-    for alt in mcf.get('metadata',{}).get('alternate_identifiers', []) or []:
-        alts.append({'alt': alt.get('identifier'), 'schema': alt.get('scheme')})
+    # add record to source
+    await upsert_source(record_id, source)
+    dbvals = {
+                'identifier': record_id,
+                'source': source,
+                'title': title,
+                'abstract': abstract,
+                'language': language,
+                'edition': edition,
+                'format': fmt,
+                'type': typ,
+                'thumbnail': thumbnail,
+                'revisiondate': dts['modification'],
+                'creationdate': dts['creation'],
+                'publicationdate': dts['publication'],
+                'resolution': str(resolution),
+                'denominator': str(denominator),
+                'accessconstraints': accessconstraints,
+                'license': license,
+                'rights': rights,
+                'lineage': lineage,
+                'spatial': spatial,
+                'temporal_start': temporal_start,
+                'temporal_end': temporal_end,
+                'md5_hash': source_md5,
+                'raw_mcf': json.dumps(mcf, default=str)
+            }
 
-    for alt in alts:
-        row = await database.fetch_one(f"SELECT id FROM {qn('alternate_identifiers')} WHERE alt_identifier = :uri and record_id = :record_id", 
-                                       values={'uri': alt.get('identifier'), 'rid': record_id})
-        if not row:
-            await database.execute(f"INSERT INTO {qn('alternate_identifiers')} (record_id, alt_identifier, scheme) VALUES (:rid, :alt, :scheme)", 
-                               values={'rid': record_id, 'alt': alt.get('identifier'), 'schema': alt.get('scheme')})
+    # if record (from this source) already exists, update it
+    if modus=='insert':
+        qry = f"""INSERT INTO {qn('records')} (
+                {', '.join(dbvals.keys())}
+            ) VALUES (
+                {', '.join([f":{f}" for f in dbvals.keys()])}
+            )"""
+        res = await database.execute(qry,values=dbvals)
+    else: #update
+        qry = f"""Update {qn('records')} SET
+                {', '.join([f"{f}=:{f}" for f in dbvals.keys()])}
+            WHERE identifier = :identifier"""
+        res = await database.execute(qry,values=dbvals)
+
+
+    # set project # todo: what happens if the project has changed on a record?
+
+    # project taken from record, project reference is stored in mcf.relations@project
+    if 'relations' in mcf.get('metadata',{}) and isinstance(mcf['metadata']['relations'],list):
+        for rel in mcf['metadata']['relations']:
+            if rel.get('type','').lower() == 'project' and rel.get('identifier') not in (None,''):
+                await upsert_project(record_id, rel.get('identifier'))
+    elif project not in (None,'','None'):
+        await upsert_project(record_id, project)
+
+    # process alt identifiers
+    a_ids = mcf.get('metadata',{}).get('additional_identifiers',[])
+    for k in ['identifier','dataseturi']:
+        idt = mcf.get('metadata',{}).get(k)
+        if isinstance(idt, list):
+            idt = copy.deepcopy(idt)[0]
+        if idt not in [None,''] and idt != record_id:
+            a_ids.append({
+                'scheme': ('uri' if idt.startswith('http') else 'uuid'),
+                'identifier': idt })
+    for tid in a_ids:
+        exists2 = await database.fetch_one(f"""
+            SELECT record_id FROM {qn('alternate_identifiers')} WHERE (
+            alt_identifier = :identifier and record_id = :fk_identifier ) OR (
+            alt_identifier = :fk_identifier and record_id = :identifier)""", 
+            values={'identifier': record_id, 'fk_identifier': tid['identifier'] })
+        if not exists2:
+            vals = {
+                    'identifier': record_id, 
+                    'fk_identifier': tid['identifier'], 
+                    'scheme': tid.get('scheme', '') }
+            qry = f"insert into {qn('alternate_identifiers')} (record_id, alt_identifier, scheme) values (:identifier, :fk_identifier, :scheme )"
+            await database.execute(qry, values=vals)
+    
+
+    # collect pers-orgs for pers-org matching
+    orgs_=[]
+    pers_=[]
+    skipMatchedOrgs=[]
+    skipMatchedPers=[]
+    for c in (mcf.get('contact', {}) or {}).values():
+        if 'organization' in c and c['organization'] not in [None,'']:
+            orgs_.append(c['organization'].lower())
+        if 'individualname' in c and c['individualname'] not in [None,'']:
+            pers_.append(c['individualname'].lower())
 
     # contacts: ensure contact exists then link
     for b,c in (mcf.get('contact', {}) or {}).items():
-        orchid = None
+        # has org or pers been matched before?
+        if 'organization' in c and c['organization'] in skipMatchedOrgs:
+            continue
+        if 'individualname' in c and c['individualname'] in skipMatchedPers:
+            continue
+        # select identifiers
+        orcid = None
         ror = None
         if c.get('url') and c.get('url').startswith('http'):
-            if 'orchid.' in c.get('url'):
-                orchid = c.get('url')
-            elif 'ror.' in c.get('url'):
+            if 'orcid.org' in c.get('url'):
+                orcid = c.get('url')
+            elif 'ror.org' in c.get('url'):
                 ror = c.get('url')
-        # email/orchid from the person
-        pers_id = await upsert_pers(c,orchid)
+        # email/orcid from the person
+        pers_id = await upsert_pers(c,orcid)
         org_id = await upsert_org(c,ror) 
 
+        # contact matching: in some cases organizations are listed separately from persons
+        # find those cases and see if can make a match
+        if not pers_id:
+            # see if a person is in the list which belongs to this organization
+            q_=f"select p.id, p.name, p.alias from {qn('employment')} e, {qn('persons')} p where p.id=e.person_id and e.organization_id = :org_id"
+            res = await database.execute(q_,values={"org_id": org_id})
+            for r in res:
+                if str(r['name']).lower() in pers_:
+                    pers_id = str(r['id'])
+                    skipMatchedOrgs.append(str(r['name']).lower())
+        elif not org_id:
+            # see if a organization is in the list which belongs to this person
+            q_=f"select o.id, o.name, o.alias from {qn('employment')} e, {qn('organizations')} o where o.id=e.organization_id and e.person_id = :pers_id"
+            res = await database.execute(q_,values={"pers_id": pers_id})
+            for r in res:
+                if str(r['name']).lower() in orgs_:
+                    org_id = str(r['id'])
+                    skipMatchedOrgs.append(str(r['name']).lower())
+                    
+            # for r in recs:
+            #  org in orgs  
+
         # contact brings together both person and org
-        role = c.get('role') or b
+        role = c.get('role','').lower()
+        # in mcf, the key is sometimes a random string, sometimes it is the role name
+        roles = ",".join(["resourceProvider,custodian,owner,user,distributor,originator,pointOfContact,principalInvestigator" +
+                "processor,publisher,author,creator,contributor,originator,dataCollector,projectMember,projectManager,projectLeader",
+                "workPackageLeader,researcher,editor,producer,supervisor,dataCurator,other"]).lower().split(',')
+        if role == '' and b.lower() in roles:
+            role = b.lower()
 
         if pers_id or org_id:
             try:
@@ -363,7 +508,8 @@ async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str,
             await database.execute(f"INSERT INTO {qn('distributions')} (record_id, format, url, name, description) VALUES (:rid, :fmt, :url, :name, :description)", 
                                    values={'rid': record_id, 'fmt': fmt, 'url': url, 'name': name, 'description': description})
 
-    # attributes
+    # attributes 
+    # todo: similar for dimensions?
     for a in mcf.get('content_info', {}).get('attributes', []) or []:
         if a.get('name'):
             name = a.get('name') 
@@ -380,10 +526,13 @@ async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str,
         kws = intl_list(v.get('keywords',{}) or {})
         thes_name = intl_str(v.get('vocabulary',{}).get('name'))
         thes_url = v.get('vocabulary',{}).get('url')
-        for kw in kws:
+        for kw in kws: # todo: this assumes kw is a str (startswith('http')?), not a uri+label -> understand how this info could be ingested/communicated
+            if isinstance(kw,dict):
+                if 'label' in kw:
+                    kw = kw['label']
             if kw not in (None,''):
-                if kw.startswith('http'):
-                    row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE uri = :uri OR ( AND )", 
+                if kw.lower().startswith('http'):
+                    row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE uri = :uri", # why? OR ( AND )", 
                                                 values={'uri': kw})
                     if row:
                         subject_id = int(row['id'])
@@ -392,13 +541,19 @@ async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str,
                                                         values={'uri': kw})
                         subject_id = int(row2['id'])
                 else:
-                    row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE label = :label and thesaurus_name = :thes_name", 
+                    kw = kw.lower() 
+                    if thes_name: # query gives nill if thes_name = nill
+                        row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE lower(label) = :label and lower(thesaurus_name) = :thes_name", 
                                                 values={'label': kw, 'thes_name': thes_name })
+                    else:
+                        row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE label = :label and thesaurus_name is null", 
+                                                values={'label': kw })
+
                     if row:
                         subject_id = int(row['id'])
                     else:
                         row2 = await database.fetch_one(f"INSERT INTO {qn('subjects')} (label, thesaurus_name, thesaurus_url) VALUES (:label, :thes_name, :thes_url) RETURNING id", 
-                                                        values={'label': kw, 'thes_name': thes_name, 'thes_url': thes_url})
+                                                        values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
                         subject_id = int(row2['id'])
                 await database.execute(f"INSERT INTO {qn('record_subject')} (record_id, subject_id) VALUES (:rid, :sid) ON CONFLICT DO NOTHING", 
                                     values={'rid': record_id, 'sid': subject_id})
@@ -408,10 +563,10 @@ async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str,
     for rel in mcf.get('metadata',{}).get('relations', []) or []:
         if isinstance(rel, dict) and rel.get('identifier') not in (None,''):
             if rel.get('type','')=='source':
-                sources.append(src.get('identifier'))
+                sources.append(rel.get('identifier'))
             else:
                 await database.execute(f"INSERT INTO {qn('relations')} (record_id, identifier, scheme, type) VALUES (:rid, :identifier, :scheme, :type) ON CONFLICT DO NOTHING", 
-                                       values={'rid': record_id, 'identifier': src.get('identifier'),'scheme': src.get('scheme'), 'type': src.get('type') })    
+                                       values={'rid': record_id, 'identifier': rel.get('identifier'),'scheme': rel.get('scheme'), 'type': rel.get('type') })    
     # sources
     for src in sources:
         await upsert_source(record_id, src)
@@ -420,37 +575,49 @@ async def insert_record_and_related(mcf: Dict[str, Any], fk_sourceentifier: str,
 
 async def upsert_source(record_id,src):
     if src not in (None,''):
-        rws = await database.fetch_one(f"SELECT id FROM {qn('sources')} WHERE lower(name) = :name", values={'name': src.lower()})
+        rws = await database.fetch_one(f"SELECT name FROM {qn('sources')} WHERE lower(name) = :name", values={'name': src.lower()})
         if rws:
-            fk_source = int(rws['id'])
+            fk_source = str(rws['name'])
         else:
-            r2 = await database.fetch_one(f"INSERT INTO {qn('sources')} (name) VALUES (:name) RETURNING id", values={'name': src.lower()})
-            fk_source = int(r2['id'])
+            r2 = await database.fetch_one(f"INSERT INTO {qn('sources')} (name) VALUES (:name) RETURNING name", values={'name': src.lower()})
+            fk_source = str(r2['name'])
         await database.execute(f"INSERT INTO {qn('record_sources')} (record_id, fk_source) VALUES (:rid, :sid) ON CONFLICT DO NOTHING",
                             values={'rid': record_id, 'sid': fk_source})
 
 async def upsert_project(record_id, prj):
-    if prj not in (None,''):
+    if prj not in (None,'','None'):
         await database.execute(f"INSERT INTO {qn('record_in_project')} (record_id, project) VALUES (:rid, :prj) ON CONFLICT DO NOTHING",
                             values={'rid': record_id, 'prj': prj})
 
-async def upsert_pers(c,orchid=None):
-    if orchid:
-        row = await database.fetch_one(f"SELECT id FROM {qn('person')} WHERE orchid = :orchid", values={'orchid': orchid})
+async def upsert_pers(c,orcid=None):
+    if orcid:
+        row = await database.fetch_one(f"SELECT id FROM {qn('person')} WHERE orcid = :orcid", values={'orcid': orcid})
         if row:
             return int(row['id'])
-    if c.get('individualname'):
-        row = await database.fetch_one(f"SELECT id FROM {qn('person')} WHERE lower(name) = :name or email = :email", 
-                                       values={'name': c.get('individualname').lower(), 'email': c.get('email')})
+    if c.get('individualname') not in (None,''):
+        row = await database.fetch_one(f"""
+                SELECT id FROM {qn('person')} 
+                WHERE lower(name) = :name 
+                or lower(alias) like :name2""",  # todo: prevent match on partial names in alias
+                values={'name': c.get('individualname').lower(), 
+                        'name2': f"%{c.get('individualname').lower()}%"})
+        if row:
+            return int(row['id'])
+    if c.get('email') not in (None,''):
+        row = await database.fetch_one(f"""
+                SELECT id FROM {qn('person')} 
+                WHERE email = :email""", 
+                values={'email': c.get('email')})
+                        
         if row:
             return int(row['id'])
     # insert new person
     res = await database.fetch_one(
-        f"INSERT INTO {qn('person')} (name, email, orchid) VALUES (:name, :email, :orchid) RETURNING id",
+        f"INSERT INTO {qn('person')} (name, email, orcid) VALUES (:name, :email, :orcid) RETURNING id",
         values={
-            'name': c.get('individualname'),
+            'name': c.get('individualname',c.get('name')),
             'email': c.get('email'),
-            'orchid': orchid
+            'orcid': orcid
         }
     )    
     return int(res['id'])
@@ -461,13 +628,29 @@ async def upsert_org(c,ror=None):
         row = await database.fetch_one(f"SELECT id FROM {qn('organization')} WHERE ror = :ror", values={'ror': ror})
         if row:
             return int(row['id'])
-    if c.get('organization'):
-        row = await database.fetch_one(f"SELECT id FROM {qn('organization')} WHERE lower(name) = :name or lower(alias) = :name or url = :url", values={'name': c.get('organization').lower(), 'url': c.get('url')})
+    if c.get('organization') not in (None,''):
+        row = await database.fetch_one(f"""
+                SELECT id FROM {qn('organization')} 
+                WHERE lower(name) = :name 
+                or lower(alias) like :name2""", 
+                values={'name': c.get('organization').lower(), 
+                        'name2': f"%{c.get('organization').lower()}%"})
+        if row:
+            return int(row['id'])
+    if c.get('url') not in (None,''):
+        row = await database.fetch_one(f"""
+                SELECT id FROM {qn('organization')} 
+                WHERE url = :url""", 
+                values={'url': c.get('url')})
         if row:
             return int(row['id'])
     # insert new org
     res = await database.fetch_one(
-        f"INSERT INTO {qn('organization')} (name, phone, ror, address, postalcode, city, administrativearea, country, url) VALUES (:name, :phone, :ror, :address,  :postalcode, :city, :administrativearea, :country, :url) RETURNING id",
+        f"""INSERT INTO {qn('organization')} (
+                name, phone, ror, address, postalcode, city, administrativearea, country, url
+            ) VALUES (
+                :name, :phone, :ror, :address, :postalcode, :city, :administrativearea, :country, :url
+            ) RETURNING id""",
         values={
             'name': c.get('organization'),
             'phone': c.get('phone'),
@@ -521,21 +704,18 @@ def intl_list(val, lang='en'):
                 return v
     return []
 
-
 def parse_date(ds):
     try:
-        return parse(ds, fuzzy=True)
+        dt = parse(ds.split("+")[0], fuzzy=True)
+        return dt
     except:
         return None
 
-
-
-
-async def process_all_source_rows():
+async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
 
     filtersql=""
-    if PROCESS_SOURCES and len(PROCESS_SOURCES) > 0:
-        filtersql = " AND lower(s.source) IN (" + ",".join([f"'{s.lower().strip()}'" for s in PROCESS_SOURCES]) + ") "
+    if PROCESS_SOURCE:
+        filtersql = f" AND upper(s.source) = '{PROCESS_SOURCE.upper().strip()}' "
 
     # Select only source rows whose MD5 (if present) is not already in records
     query = f"""
@@ -543,12 +723,12 @@ async def process_all_source_rows():
         resulttype, hash, source, project, turtle, 
         (select turtle_prefix from {SOURCE_SOURCE_TABLE} 
         where name = s.source) as ttl_pref, doimetadata FROM {SOURCE_TABLE} s 
-        WHERE (NOT EXISTS (
-            SELECT 1 FROM {qn('records')} r WHERE r.md5_hash = s.hash)) 
-        AND s.source <> 'CORDIS'
+        WHERE 1=1
         {filtersql}
         AND (NOT EXISTS (
-            SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash))    
+            SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
+        AND (NOT EXISTS (
+            SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))    
         LIMIT {RECORDS_PER_PAGE}"""
 
     # resulttype='iso19139:2007' and
@@ -556,12 +736,12 @@ async def process_all_source_rows():
     logger.info('Selected %d source rows to process', len(rows))
 
     for r in rows:
-        fk_source = str(r['identifier'])
+        identifier = str(r['identifier'])
         txt = r['resultobject']
         resulttype = r['resulttype']
         source_md5 = r['hash']
         source = str(r['source'])
-        project = str(r['project'])
+        project = r['project']
         turtle = str(r['turtle'])
         ttl_pref = str(r['ttl_pref']) or ''
         doimetadata = r['doimetadata']
@@ -569,43 +749,69 @@ async def process_all_source_rows():
         ahash = r['hash']
 
         mcf = None
-        # parse using pygeometa
+
         try:
         # some sources log to various source-fields
         # based on source select the relevant source field
+            logger.info(f'parse {source}:{identifier}')
             if identifiertype == 'doi' and doimetadata not in (None,'') and not doimetadata.startswith('Failed'):
                 txt = doimetadata
                 mcf = import_metadata('openaire', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {fk_source} from {source} as doi metadata')
+                    raise ValueError(f'Failed parsing {identifier} from {source} as doi metadata')
+            elif doimetadata not in (None,'') and not doimetadata.startswith('Failed'):
+                # this is the parsed metadata, for example from youtube (but not openaire, see case above)
+                txt = doimetadata
+                mcf = import_metadata('autodetect', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {identifier} from {identifiertype}:{source} as parsed metadata')
+            elif resulttype == 'schema.org' and txt not in [None,'']:
+                mcf = import_metadata('schema-org', txt)
+                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                    raise ValueError(f'Failed parsing {identifier} from {source} as schema.org')
             elif resulttype == 'iso19139:2007' or '<gmd:MD_Metadata' in txt:
                 mcf = import_metadata('iso19139', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {fk_source} from {source} as iso19139 metadata')
-            elif source == 'data.europa.eu':
-                mcf = import_metadata('dcat', txt)
+                    raise ValueError(f'Failed parsing {identifier} from {source} as iso19139:2007')
+            elif source == 'DATA.EUROPA.EU' or source == 'DATA.EUROPA.EU.BY.SOIL':
+                mcf = import_metadata('schema-org', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {fk_source} from {source} as explicit dcat metadata')
+                    raise ValueError(f'Failed parsing {identifier} from {source} as explicit schema-org metadata')
             #elif source in ('CORDIS','IMPACT4SOIL','PREPSOIL'): # use turtle 
             #    txt = r['']
             elif turtle and len(turtle) > 10:
                 txt = ttl_pref + turtle 
                 mcf = import_metadata('dcat', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {fk_source} from {source} as implicit dcat metadata')
+                    raise ValueError(f'Failed parsing {identifier} from {source} as implicit dcat metadata')
             else:           
                 mcf = import_metadata('autodetect', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {fk_source} from {source} as autodetect metadata')
+                    raise ValueError(f'Failed parsing {identifier} from {source} as autodetect metadata')
                         
             # insert record and related entities
-            record_id = await insert_record_and_related(mcf, fk_source, source_md5, source, project)
-            logger.info('Inserted record id %s for source %s', fk_source, source)
+            record_id = await insert_record_and_related(mcf, identifier, source_md5, source, project)
+
+            mode = 'merge'
+            if record_id == identifier:
+                mode = 'insert' 
+            await database.fetch_one(
+                f"INSERT INTO {qn('records_processed')} (identifier, hash, final_id, source, mode, date) VALUES (:id, :hash, :final_id, :source, :mode, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
+                values={
+                    'id': identifier,
+                    'hash': ahash,
+                    'final_id': record_id,
+                    'source': source,
+                    'mode': mode
+                })
+            logger.info('%s record id %s for source %s', mode, identifier, source)
+
         except Exception as e:
-            res = await database.fetch_one(
+            logger.error(f"Import in {source}: {e}: {traceback.format_exc()}")
+            await database.fetch_one(
                 f"INSERT INTO {qn('records_failed')} (identifier, hash, error, date) VALUES (:id, :hash, :error, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
                 values={
-                    'id': fk_source,
+                    'id': identifier,
                     'hash': ahash,
                     'error': f"Import in {source}: {e}: {traceback.format_exc()}"
                 })
@@ -614,7 +820,18 @@ async def process_all_source_rows():
 async def main():
     await database.connect()
     await create_tables()
-    await process_all_source_rows()
+    PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 100)
+    if PROCESS_SOURCES == ['sampling']:
+        recs = await database.fetch_all(f"select name from harvest.sources")
+        for r in recs:
+            logger.info(f"Processing {r['name']}")
+            await process_source_rows(r['name'], 5)
+    elif len(PROCESS_SOURCES) > 0 :
+        for r in PROCESS_SOURCES:
+           await process_source_rows(r, RECORDS_PER_PAGE) 
+    else:    
+        await process_source_rows(None, RECORDS_PER_PAGE)
     await database.disconnect()
 
 
