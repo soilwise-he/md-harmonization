@@ -98,6 +98,9 @@ async def create_tables():
     ddl = f"""
     CREATE TABLE IF NOT EXISTS {qn('records')} (
         identifier TEXT,
+        md_lang TEXT,
+        md_date timestamp without time zone,
+        harvest_date timestamp without time zone,
         source TEXT, 
         title TEXT,
         abstract TEXT,
@@ -108,6 +111,7 @@ async def create_tables():
         revisiondate timestamp without time zone,
         creationdate timestamp without time zone,
         publicationdate timestamp without time zone,
+        embargodate timestamp without time zone,
         resolution TEXT,
         denominator TEXT,
         accessconstraints TEXT,
@@ -116,6 +120,7 @@ async def create_tables():
         lineage TEXT,
         spatial TEXT,
         spatial_desc TEXT,
+        datamodel TEXT,
         temporal_start timestamp without time zone,
         temporal_end timestamp without time zone,
         thumbnail TEXT,
@@ -287,7 +292,7 @@ async def create_tables():
     logger.info('Ensured tables (prefix=%s)', SCHEMA_PREFIX)
 
 
-async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_md5: Optional[str], source: str, project: str) -> str:
+async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, md5_hash: Optional[str], source: str, project: str, harvest_date = None, modus='insert') -> str:
 
     # record (version) already exists? -> insert or update or skip
     # if md5 is the same, skip; if md5 is different, update record with new metadata and md5
@@ -295,13 +300,16 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
     # after initial insert, as this will cause the md5 to differ and the record to be updated again on next harvest, 
     # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
     # md5 for stored metadata (after augmentation).
-    modus = 'insert'
+
     exists = await database.fetch_one(f"""
             SELECT identifier, source, md5_hash FROM {qn('records')} 
             WHERE identifier = :identifier""", 
             values={'identifier': record_id})
     if exists:
-        if exists['md5_hash'] == source_md5:
+        if modus == 'update':
+            logger.info(f'Explicit update for {source}:{record_id}')
+            modus = 'update'
+        elif exists['md5_hash'] == md5_hash:
             logger.info(f'Record with identifier {source}:{record_id}, returning existing')
             return exists['identifier'] # skip
         elif exists['source'] != source:
@@ -316,12 +324,15 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
     mmd_= mcf.get('metadata',{})
     mid_= mcf.get('identification',{})
     mci_= mcf.get('content_info',{})
-    language = intl_str(mmd_.get('language',mid_.get('language','')))
+    md_date = parse_date(mmd_.get('datestamp'))
+    md_lang = intl_str(mmd_.get('language',''))
+    language = intl_str(mid_.get('language',mmd_.get('language','')))
     edition = mid_.get('edition','')
     fmt = mid_.get('format','')
     typ = mmd_.get('hierarchylevel','')
     dts = {"creation": None,
            "publication": None,
+           "embargoend": None,
            "modification": None}
     for tp,dt in mid_.get('dates',{}).items():
         dts[tp] = parse_date(dt) 
@@ -334,13 +345,19 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
         resolution = ','.join([f.get('distance') for f in mci_.get('resolution') if 'distance' in f and f['distance'] not in [None,'']])
 
     accessconstraints = intl_str(mid_.get('accessconstraints',''))
-    license = intl_str(mid_.get('license',{}).get('url',mid_.get('license',{}).get('name')))
+    license = ''
+    lic_ = mid_.get('license')
+    if lic_:
+        license = lic_.get('url')
+        if license in [None,'']:
+            license = intl_str(lic_.get('name',))
+
     rights = intl_str(mid_.get('rights',''))
-    
     lineage = intl_str(mcf.get('dataquality',{}).get('lineage',''))
     thumbnail = mcf.get('identification',{}).get('browsegraphic','')
     first_spatial_extent = next(iter(mid_.get('extents',{}).get('spatial',[])), {})
-    spatial = str(first_spatial_extent.get('bbox',first_spatial_extent.get('description',''))) 
+    spatial = str(first_spatial_extent.get('bbox',''))
+    spatial_desc = first_spatial_extent.get('description','') 
     first_temporal_extent = next(iter(mid_.get('extents',{}).get('temporal',[])), {})
     temporal_start = parse_date(first_temporal_extent.get('begin',None))
     temporal_end = parse_date(first_temporal_extent.get('end',None))
@@ -352,6 +369,9 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
     await upsert_source(record_id, source)
     dbvals = {
                 'identifier': record_id,
+                'md_lang': md_lang,
+                'md_date': md_date,
+                'harvest_date': harvest_date,
                 'source': source,
                 'title': title,
                 'abstract': abstract,
@@ -363,6 +383,7 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
                 'revisiondate': dts['modification'],
                 'creationdate': dts['creation'],
                 'publicationdate': dts['publication'],
+                'embargodate': dts['embargoend'],
                 'resolution': str(resolution),
                 'denominator': str(denominator),
                 'accessconstraints': accessconstraints,
@@ -370,9 +391,10 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
                 'rights': rights,
                 'lineage': lineage,
                 'spatial': spatial,
+                'spatial_desc': spatial_desc,
                 'temporal_start': temporal_start,
                 'temporal_end': temporal_end,
-                'md5_hash': source_md5,
+                'md5_hash': md5_hash,
                 'raw_mcf': json.dumps(mcf, default=str)
             }
 
@@ -524,8 +546,8 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, source_
     sbjs = []
     for k,v in (mcf.get('identification',{}).get('keywords', {}) or {}).items():
         kws = intl_list(v.get('keywords',{}) or {})
-        thes_name = intl_str(v.get('vocabulary',{}).get('name'))
-        thes_url = v.get('vocabulary',{}).get('url')
+        thes_name = intl_str(v.get('vocabulary',{}).get('name')) or ''
+        thes_url = v.get('vocabulary',{}).get('url', '')
         for kw in kws: # todo: this assumes kw is a str (startswith('http')?), not a uri+label -> understand how this info could be ingested/communicated
             if isinstance(kw,dict):
                 if 'label' in kw:
@@ -707,9 +729,27 @@ def intl_list(val, lang='en'):
 def parse_date(ds):
     try:
         dt = parse(ds.split("+")[0], fuzzy=True)
-        return dt
+        return dt.replace(tzinfo=None)
     except:
         return None
+
+
+async def reprocess_rows():
+    query = f"""
+            select identifier, raw_mcf, md5_hash, source, harvest_date 
+            from {qn('records')}
+            where raw_mcf is not Null
+            """
+    rows = await database.fetch_all(query)
+    logger.info('Selected %d source rows to update', len(rows))
+
+    for r in rows:
+        identifier = str(r['identifier'])
+        mcf = json.loads(r['raw_mcf'])
+        md5_hash= r['md5_hash']
+        source= r['source']
+        harvest_date= r['harvest_date']
+        await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, source=source, project=None, harvest_date=harvest_date, modus="update")
 
 async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
 
@@ -722,7 +762,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         SELECT identifier, identifiertype, resultobject,
         resulttype, hash, source, project, turtle, 
         (select turtle_prefix from {SOURCE_SOURCE_TABLE} 
-        where name = s.source) as ttl_pref, doimetadata FROM {SOURCE_TABLE} s 
+        where name = s.source) as ttl_pref, doimetadata, insert_date FROM {SOURCE_TABLE} s 
         WHERE 1=1
         {filtersql}
         AND (NOT EXISTS (
@@ -739,7 +779,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         identifier = str(r['identifier'])
         txt = r['resultobject']
         resulttype = r['resulttype']
-        source_md5 = r['hash']
+        md5_hash = r['hash']
         source = str(r['source'])
         project = r['project']
         turtle = str(r['turtle'])
@@ -790,7 +830,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
                     raise ValueError(f'Failed parsing {identifier} from {source} as autodetect metadata')
                         
             # insert record and related entities
-            record_id = await insert_record_and_related(mcf, identifier, source_md5, source, project)
+            record_id = await insert_record_and_related(mcf, identifier, md5_hash, source, project, r['insert_date'])
 
             mode = 'merge'
             if record_id == identifier:
@@ -818,20 +858,25 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
 
 
 async def main():
+    PROCESS_MODE = os.getenv('PROCESS_MODE') or "INSERT"
+    print("Processing",PROCESS_MODE)
     await database.connect()
     await create_tables()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
     RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 100)
-    if PROCESS_SOURCES == ['sampling']:
-        recs = await database.fetch_all(f"select name from harvest.sources")
-        for r in recs:
-            logger.info(f"Processing {r['name']}")
-            await process_source_rows(r['name'], 5)
-    elif len(PROCESS_SOURCES) > 0 :
-        for r in PROCESS_SOURCES:
-           await process_source_rows(r, RECORDS_PER_PAGE) 
-    else:    
-        await process_source_rows(None, RECORDS_PER_PAGE)
+    if PROCESS_MODE == 'UPDATE':
+        await reprocess_rows()
+    else:
+        if PROCESS_SOURCES == ['sampling']:
+            recs = await database.fetch_all(f"select name from harvest.sources")
+            for r in recs:
+                logger.info(f"Processing {r['name']}")
+                await process_source_rows(r['name'], 5)
+        elif len(PROCESS_SOURCES) > 0 :
+            for r in PROCESS_SOURCES:
+                await process_source_rows(r, RECORDS_PER_PAGE) 
+        else:    
+            await process_source_rows(None, RECORDS_PER_PAGE)
     await database.disconnect()
 
 
