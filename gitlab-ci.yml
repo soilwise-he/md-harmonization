@@ -11,7 +11,8 @@ md-harmonize-dev:
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata2POSTGRES_HOST=$POSTGRES_HOST_TEST
+    - export TARGET_SCHEMA=metadata
+    - export POSTGRES_HOST=$POSTGRES_HOST_TEST
     - pip3 install -r src/requirements.txt
     - python3 src/process.py
   rules:
@@ -25,7 +26,8 @@ md-harmonize-prod:
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata2POSTGRES_HOST=$POSTGRES_HOST_TEST
+    - export TARGET_SCHEMA=metadata
+    - export POSTGRES_HOST=$POSTGRES_HOST_PROD
     - pip3 install -r src/requirements.txt
     - python3 src/process.py
   rules:
