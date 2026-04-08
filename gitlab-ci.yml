@@ -6,7 +6,7 @@ stages:
 
 # metadata
 md-harmonize-dev:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.10.18-slim-bookworm
+  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
   stage: run-harvest
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
@@ -20,7 +20,7 @@ md-harmonize-dev:
 
 # metadata
 md-harmonize-prod:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.10.18-slim-bookworm
+  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
   stage: run-process
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise

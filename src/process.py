@@ -23,6 +23,7 @@ Usage:
 
 """
 
+from genericpath import exists
 import os, sys, yaml, json, copy
 import hashlib
 import logging
@@ -55,8 +56,6 @@ SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
 SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
 TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
 
-
-
 if not DATABASE_URL:
     logger.error('DATABASE_URL not set.')
     sys.exit(1)
@@ -76,6 +75,30 @@ def compute_md5_string(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
     return hashlib.md5(text.encode('utf-8')).hexdigest()
+
+# from https://gist.github.com/angstwad/bf22d1822c38a92ec0a9
+def dict_merge(dct, merge_dct):
+    """
+    Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
+    updating only top-level keys, __dict_merge recurses down into dicts
+    nested to an arbitrary depth, updating keys. The ``merge_dct`` is
+    merged into ``dct``.
+    :param dct: dict onto which the merge is executed
+    :param merge_dct: dct merged into dct
+    :returns: None
+    """
+    if merge_dct and not isinstance(merge_dct, str):
+        for k, v in merge_dct.items():
+            try:
+                if (k in dct and isinstance(dct[k], dict)):
+                    dict_merge(dct[k], merge_dct[k])
+                else:
+                    if k in dct and dct[k] and not v:
+                        pass
+                    else:
+                        dct[k] = merge_dct[k]
+            except Exception as e:
+                print(e,"; k:",k,"; v:",v)
 
 
 # DDL (same tables as before) - kept minimal; assumes JSONB available on PG; on sqlite it will be TEXT
@@ -179,7 +202,7 @@ async def create_tables():
         record_id TEXT,
         role TEXT,
         position TEXT,
-        UNIQUE(id)
+        UNIQUE (fk_organization, fk_person, record_id, role)
     );    
 
     CREATE TABLE IF NOT EXISTS {qn('subjects')} (
@@ -292,7 +315,7 @@ async def create_tables():
     logger.info('Ensured tables (prefix=%s)', SCHEMA_PREFIX)
 
 
-async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, md5_hash: Optional[str], source: str, project: str, harvest_date = None, modus='insert') -> str:
+async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_hash: Optional[str], source: str, project: str, harvest_date = None, modus='insert') -> str:
 
     # record (version) already exists? -> insert or update or skip
     # if md5 is the same, skip; if md5 is different, update record with new metadata and md5
@@ -301,23 +324,54 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, md5_has
     # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
     # md5 for stored metadata (after augmentation).
 
-    exists = await database.fetch_one(f"""
-            SELECT identifier, source, md5_hash FROM {qn('records')} 
+    #check if identifier already present?
+    exists = await database.fetch_all(f"""
+            SELECT identifier FROM {qn('records_processed')} 
             WHERE identifier = :identifier""", 
             values={'identifier': record_id})
+    mode = 'insert'
+    mcf = {}
     if exists:
-        if modus == 'update':
-            logger.info(f'Explicit update for {source}:{record_id}')
-            modus = 'update'
-        elif exists['md5_hash'] == md5_hash:
-            logger.info(f'Record with identifier {source}:{record_id}, returning existing')
-            return exists['identifier'] # skip
-        elif exists['source'] != source:
-            logger.warning(f'Conflict for {source}:{record_id} with existing record from different source {exists["source"]}, skipping update to avoid overwriting data from other source')
-            return exists['identifier'] # skip
-        else:   
-            logger.info(f'Newer record for {source}:{record_id} exists, updating')
-            modus = 'update' # update
+        for r in exists:
+            if r['source'] == source:
+                mode = 'update' 
+
+    if mode == 'insert':
+        await database.fetch_one(
+            f"""INSERT INTO {qn('records_processed')} (
+                identifier, hash, source, mode, project, mcf
+            ) VALUES (
+                :id, :hash, :source, :mode, :project, :mcf)""",
+            values={
+                'id': record_id,
+                'hash': md5_hash,
+                'source': source,
+                'mode': mode,
+                'project': project,
+                'mcf': json.dumps(mcf_in, default=str)
+            })
+        mcf = mcf_in
+    else:
+        await database.fetch_one(
+            f"""UPDATE {qn('records_processed')} SET 
+                hash = :hash, mode = :mode, project = :project, mcf = :mcf
+                WHERE identifier = :id AND source = :source""",
+            values={
+                'id': record_id,
+                'hash': md5_hash,
+                'source': source,
+                'mode': mode,
+                'project': project,
+                'mcf': json.dumps(mcf_in, default=str)
+            })
+        # merge mcf's
+
+        for r in exists:
+            if r['source'] == source:
+                dict_merge(mcf, mcf_in)
+            elif r['mcf']:
+                dict_merge(mcf, json.loads(r['mcf']))
+
 
 
     # process mcf
@@ -372,7 +426,6 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, md5_has
                 'md_lang': md_lang,
                 'md_date': md_date,
                 'harvest_date': harvest_date,
-                'source': source,
                 'title': title,
                 'abstract': abstract,
                 'language': language,
@@ -399,19 +452,13 @@ async def insert_record_and_related(mcf: Dict[str, Any], record_id: str, md5_has
             }
 
     # if record (from this source) already exists, update it
-    if modus=='insert':
-        qry = f"""INSERT INTO {qn('records')} (
+    qry = f"""INSERT INTO {qn('records')} (
                 {', '.join(dbvals.keys())}
             ) VALUES (
                 {', '.join([f":{f}" for f in dbvals.keys()])}
-            )"""
-        res = await database.execute(qry,values=dbvals)
-    else: #update
-        qry = f"""Update {qn('records')} SET
-                {', '.join([f"{f}=:{f}" for f in dbvals.keys()])}
-            WHERE identifier = :identifier"""
-        res = await database.execute(qry,values=dbvals)
-
+            ) on conflict (identifier) do update set
+                {', '.join([f"{f}=:{f}" for f in dbvals.keys()])}"""
+    res = await database.execute(qry,values=dbvals)
 
     # set project # todo: what happens if the project has changed on a record?
 
@@ -736,7 +783,7 @@ def parse_date(ds):
 
 async def reprocess_rows():
     query = f"""
-            select identifier, raw_mcf, md5_hash, source, harvest_date 
+            select identifier, raw_mcf, md5_hash, harvest_date 
             from {qn('records')}
             where raw_mcf is not Null
             """
@@ -747,9 +794,8 @@ async def reprocess_rows():
         identifier = str(r['identifier'])
         mcf = json.loads(r['raw_mcf'])
         md5_hash= r['md5_hash']
-        source= r['source']
         harvest_date= r['harvest_date']
-        await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, source=source, project=None, harvest_date=harvest_date, modus="update")
+        await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, project=None, harvest_date=harvest_date, modus="update")
 
 async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
 
@@ -757,18 +803,18 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
     if PROCESS_SOURCE:
         filtersql = f" AND upper(s.source) = '{PROCESS_SOURCE.upper().strip()}' "
 
-    # Select only source rows whose MD5 (if present) is not already in records
+    # Select only source rows whose MD5 (if present) 
+    # is not already in records
     query = f"""
         SELECT identifier, identifiertype, resultobject,
         resulttype, hash, source, project, turtle, 
         (select turtle_prefix from {SOURCE_SOURCE_TABLE} 
         where name = s.source) as ttl_pref, doimetadata, insert_date FROM {SOURCE_TABLE} s 
-        WHERE 1=1
-        {filtersql}
-        AND (NOT EXISTS (
+        WHERE (NOT EXISTS (
             SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
-            SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))    
+            SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash)) 
+        {filtersql}   
         LIMIT {RECORDS_PER_PAGE}"""
 
     # resulttype='iso19139:2007' and
@@ -832,19 +878,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
             # insert record and related entities
             record_id = await insert_record_and_related(mcf, identifier, md5_hash, source, project, r['insert_date'])
 
-            mode = 'merge'
-            if record_id == identifier:
-                mode = 'insert' 
-            await database.fetch_one(
-                f"INSERT INTO {qn('records_processed')} (identifier, hash, final_id, source, mode, date) VALUES (:id, :hash, :final_id, :source, :mode, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
-                values={
-                    'id': identifier,
-                    'hash': ahash,
-                    'final_id': record_id,
-                    'source': source,
-                    'mode': mode
-                })
-            logger.info('%s record id %s for source %s', mode, identifier, source)
+            logger.info('record id %s for source %s', identifier, source)
 
         except Exception as e:
             logger.error(f"Import in {source}: {e}: {traceback.format_exc()}")
