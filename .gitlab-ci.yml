@@ -15,8 +15,8 @@ md-harmonize-dev:
     - export POSTGRES_HOST=$POSTGRES_HOST_TEST
     - pip3 install -r src/requirements.txt
     - python3 src/process.py
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "dev"
+  only: 
+    - "dev"
 
 
 # metadata
@@ -30,5 +30,5 @@ md-harmonize-prod:
     - export POSTGRES_HOST=$POSTGRES_HOST_PROD
     - pip3 install -r src/requirements.txt
     - python3 src/process.py
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "main"
+  only:
+    - "main"
