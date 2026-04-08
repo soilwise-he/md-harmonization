@@ -6,14 +6,13 @@ stages:
 
 # metadata
 md-harmonize-dev:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
+  image: harbor.containers.wurnet.nl/ghcr-proxy/soilwise-he/md-harmonization:latest
   stage: run-process
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata
+    - export TARGET_SCHEMA=metadata.
     - export POSTGRES_HOST=$POSTGRES_HOST_TEST
-    - pip3 install -r src/requirements.txt
     - python3 src/process.py
   only: 
     - "dev"
@@ -21,14 +20,13 @@ md-harmonize-dev:
 
 # metadata
 md-harmonize-prod:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
+  image: harbor.containers.wurnet.nl/ghcr-proxy/soilwise-he/md-harmonization:latest
   stage: run-process
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata
+    - export TARGET_SCHEMA=metadata.
     - export POSTGRES_HOST=$POSTGRES_HOST_PROD
-    - pip3 install -r src/requirements.txt
     - python3 src/process.py
   only:
     - "main"
