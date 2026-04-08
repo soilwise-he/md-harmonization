@@ -7,7 +7,7 @@ stages:
 # metadata
 md-harmonize-dev:
   image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
-  stage: run-harvest
+  stage: run-process
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
