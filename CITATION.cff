@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Metadata Harmonization"
+authors:
+  - family-names: "van Genuchten"
+    given-names: "Paul"
+    email: "paul.vangenuchten@wur.nl"
+    affiliation: "ISRIC World Soil Information"
+    orcid: "https://orcid.org/0000-0002-4789-174X"
+repository-code: "https://github.com/soilwise-he/md-harmonization"
+url: "https://soilwise-he.eu"
+abstract: >-
+  This GitHub repository contains the code for the Metadata harmonization. This component harmonizes the harvested content into a common database model. The component is part of the harvesting cluster.
+keywords:
+  - metadata
+  - repositories
+  - harmonization
+  - database model
+license: "MIT"
+version: "0.1.0"
+date-released: "2026-04-20"
+identifiers:
+  - type: doi
+    value: ""
+    description: "DOI for the software (to be assigned)"
+  - type: other
+    value: "101112838"
+    description: "EU Horizon grant agreement number"
+references:
+  - type: grant
+    title: "SoilWise — Enabling Soil Data and Knowledge for Informed Decision-Making"
+    authors:
+      - name: "European Commission"
+    number: "101112838"
+    institution:
+      name: "European Union"
+    url: "https://doi.org/10.3030/101112838"
