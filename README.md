@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1139675566.svg)](https://doi.org/10.5281/zenodo.19692781)
+
 # SoilWise-he Metadata Harmonization
 
 Metadata from various source platforms arrives in various data models (iso19115, DCAT, Datacite) and serialisations (xml, json, ttl).
