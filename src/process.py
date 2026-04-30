@@ -41,7 +41,6 @@ from pygeometa.core import import_metadata
 # Load environment
 load_dotenv()
 
-
 # Logger configuration
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -51,7 +50,13 @@ logger.addHandler(handler)
 
 logging.getLogger("pygeometa").setLevel(logging.DEBUG)
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///soilwise.db')
+host=os.environ.get("POSTGRES_HOST",'')
+port=os.environ.get("POSTGRES_PORT",'')
+dbname=os.environ.get("POSTGRES_DB",'')
+user=os.environ.get("POSTGRES_USER",'')
+password=os.environ.get("POSTGRES_PASSWORD",'')
+DATABASE_URL = os.getenv('DATABASE_URL') or f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
 SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
 SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
 TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
