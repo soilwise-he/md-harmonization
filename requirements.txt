@@ -5,3 +5,4 @@ rdflib
 SQLAlchemy
 databases
 asyncpg
+aiosqlite

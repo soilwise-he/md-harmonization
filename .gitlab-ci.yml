@@ -6,27 +6,27 @@ stages:
 
 # metadata
 md-harmonize-dev:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
-  stage: run-harvest
-  script:
-    - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
-    - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata2POSTGRES_HOST=$POSTGRES_HOST_TEST
-    - pip3 install -r src/requirements.txt
-    - python3 src/process.py
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "dev"
-
-
-# metadata
-md-harmonize-prod:
-  image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.14-slim-bookworm
+  image: harbor.containers.wurnet.nl/ghcr-proxy/soilwise-he/md-harmonization:latest
   stage: run-process
   script:
     - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
     - export SOURCE_TABLE=harvest.items
-    - export TARGET_SCHEMA=metadata2POSTGRES_HOST=$POSTGRES_HOST_TEST
-    - pip3 install -r src/requirements.txt
+    - export TARGET_SCHEMA=metadata.
+    - export POSTGRES_HOST=$POSTGRES_HOST_TEST
     - python3 src/process.py
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "main"
+  only: 
+    - "dev"
+
+
+# metadata
+md-harmonize-prod:
+  image: harbor.containers.wurnet.nl/ghcr-proxy/soilwise-he/md-harmonization:latest
+  stage: run-process
+  script:
+    - export DATABASE_URL=postgresql://soilwise:Brugge2503@tpostgreswenr1.cdbe.wurnet.nl:5432/test_soilwise
+    - export SOURCE_TABLE=harvest.items
+    - export TARGET_SCHEMA=metadata.
+    - export POSTGRES_HOST=$POSTGRES_HOST_PROD
+    - python3 src/process.py
+  only:
+    - "main"

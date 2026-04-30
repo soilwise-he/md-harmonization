@@ -41,7 +41,6 @@ from pygeometa.core import import_metadata
 # Load environment
 load_dotenv()
 
-
 # Logger configuration
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -51,7 +50,13 @@ logger.addHandler(handler)
 
 logging.getLogger("pygeometa").setLevel(logging.DEBUG)
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///soilwise.db')
+host=os.environ.get("POSTGRES_HOST",'')
+port=os.environ.get("POSTGRES_PORT",'')
+dbname=os.environ.get("POSTGRES_DB",'')
+user=os.environ.get("POSTGRES_USER",'')
+password=os.environ.get("POSTGRES_PASSWORD",'')
+DATABASE_URL = os.getenv('DATABASE_URL') or f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
 SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
 SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
 TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
@@ -326,7 +331,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
 
     #check if identifier already present?
     exists = await database.fetch_all(f"""
-            SELECT identifier FROM {qn('records_processed')} 
+            SELECT identifier, source, mcf FROM {qn('records_processed')} 
             WHERE identifier = :identifier""", 
             values={'identifier': record_id})
     mode = 'insert'
@@ -562,7 +567,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                     INSERT INTO {qn('contact_in_record')} (
                         record_id, fk_organization, fk_person, role, position
                     ) VALUES (
-                        :rid, :oid, :pid, :role, :position)""", 
+                        :rid, :oid, :pid, :role, :position) on conflict (fk_organization, fk_person, record_id, role) do nothing""", 
                     values={'rid': record_id, 'oid': org_id, 'pid': pers_id, 'role': role, 'position': c.get('position')})
             except Exception as e:
                 logger.info('Failed to create contact link for record %s: %s', record_id, e)
@@ -574,7 +579,12 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
             url = urllib.parse.quote_plus(d.get('url')) 
             name = d.get('name') 
             description = intl_str(d.get('description')) 
-            await database.execute(f"INSERT INTO {qn('distributions')} (record_id, format, url, name, description) VALUES (:rid, :fmt, :url, :name, :description)", 
+            await database.execute(f"""INSERT INTO {qn('distributions')} (
+                                    record_id, format, url, name, description
+                                   ) VALUES (
+                                    :rid, :fmt, :url, :name, :description
+                                   ) on conflict (
+                                   record_id, url, name) do nothing""", 
                                    values={'rid': record_id, 'fmt': fmt, 'url': url, 'name': name, 'description': description})
 
     # attributes 
@@ -592,40 +602,89 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # subjects
     sbjs = []
     for k,v in (mcf.get('identification',{}).get('keywords', {}) or {}).items():
+        row = None
         kws = intl_list(v.get('keywords',{}) or {})
-        thes_name = intl_str(v.get('vocabulary',{}).get('name')) or ''
-        thes_url = v.get('vocabulary',{}).get('url', '')
+        thes_name = intl_str(v.get('vocabulary',{}).get('name','')).strip() or ''
+        thes_url = v.get('vocabulary',{}).get('url', '').strip() or ''
         for kw in kws: # todo: this assumes kw is a str (startswith('http')?), not a uri+label -> understand how this info could be ingested/communicated
             if isinstance(kw,dict):
                 if 'label' in kw:
                     kw = kw['label']
+                else:
+                    print("Cannot process keyword, no label found in dict:", kw)
+                    continue
+                
             if kw not in (None,''):
-                if kw.lower().startswith('http'):
-                    row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE uri = :uri", # why? OR ( AND )", 
+                if kw.lower().startswith('http'): # query by subject uri
+                    row = await database.fetch_one(f"""SELECT id 
+                                                   FROM {qn('subjects')} 
+                                                   WHERE uri = :uri""", 
                                                 values={'uri': kw})
                     if row:
                         subject_id = int(row['id'])
                     else:
-                        row2 = await database.fetch_one(f"INSERT INTO {qn('subjects')} (uri) VALUES (:uri ) RETURNING id", 
+                        row2 = await database.fetch_one(f"""INSERT INTO {qn('subjects')} 
+                                                        (uri) VALUES (:uri ) RETURNING id""", 
                                                         values={'uri': kw})
                         subject_id = int(row2['id'])
-                else:
+                else: # query by parts
                     kw = kw.lower() 
-                    if thes_name: # query gives nill if thes_name = nill
-                        row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE lower(label) = :label and lower(thesaurus_name) = :thes_name", 
-                                                values={'label': kw, 'thes_name': thes_name })
-                    else:
-                        row = await database.fetch_one(f"SELECT id FROM {qn('subjects')} WHERE label = :label and thesaurus_name is null", 
+                    if thes_url and thes_url.strip() != '':
+                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
+                                                       WHERE lower(label) = :label 
+                                                       AND thesaurus_url = :thes_url""", 
+                                                values={'label': kw, 'thes_url': thes_url })
+                        
+                        if row:
+                            subject_id = int(row['id'])
+                        else:
+                            row2 = await database.fetch_one(f"""
+                                    INSERT INTO {qn('subjects')} (
+                                        label, thesaurus_url
+                                    ) VALUES (
+                                        :label :thes_url) RETURNING id""", 
+                                    values={'label': kw, 'thes_url': thes_url})
+                            subject_id = int(row2['id'])
+                    elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
+                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
+                                                       WHERE lower(label) = :label 
+                                                       AND lower(thesaurus_name) = :thes_name""", 
+                                                values={'label': kw, 'thes_name': thes_name.lower() })
+                        if row:
+                            subject_id = int(row['id'])
+                        else:
+                            row2 = await database.fetch_one(f"""
+                                    INSERT INTO {qn('subjects')} (
+                                        label, thesaurus_name
+                                    ) VALUES (
+                                        :label, :thes_name) RETURNING id""", 
+                                    values={'label': kw, 'thes_name': thes_name.lower()})
+                            subject_id = int(row2['id'])
+                    
+                    else: #no thesaurus
+                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')}
+                                                       WHERE label = :label
+                                                       AND coalesce(thesaurus_name, '') = ''
+                                                       AND coalesce(thesaurus_url, '') = ''""", 
                                                 values={'label': kw })
+                        if row:
+                            subject_id = int(row['id'])
+                        else:
+                            row2 = await database.fetch_one(f"""
+                                INSERT INTO {qn('subjects')} (
+                                    label, thesaurus_name, thesaurus_url
+                                ) VALUES (
+                                    :label, :thes_name, :thes_url) RETURNING id""", 
+                                values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
+                            subject_id = int(row2['id'])
 
-                    if row:
-                        subject_id = int(row['id'])
-                    else:
-                        row2 = await database.fetch_one(f"INSERT INTO {qn('subjects')} (label, thesaurus_name, thesaurus_url) VALUES (:label, :thes_name, :thes_url) RETURNING id", 
-                                                        values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
-                        subject_id = int(row2['id'])
-                await database.execute(f"INSERT INTO {qn('record_subject')} (record_id, subject_id) VALUES (:rid, :sid) ON CONFLICT DO NOTHING", 
-                                    values={'rid': record_id, 'sid': subject_id})
+                if subject_id not in [None,'']:                   
+                    await database.execute(f"""INSERT INTO {qn('record_subject')} (
+                                        record_id, subject_id
+                                        ) VALUES (:rid, :sid) 
+                                        ON CONFLICT DO NOTHING""", 
+                                        values={'rid': record_id, 
+                                                'sid': subject_id})
 
     # relations
     sources = []
@@ -634,8 +693,15 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
             if rel.get('type','')=='source':
                 sources.append(rel.get('identifier'))
             else:
-                await database.execute(f"INSERT INTO {qn('relations')} (record_id, identifier, scheme, type) VALUES (:rid, :identifier, :scheme, :type) ON CONFLICT DO NOTHING", 
-                                       values={'rid': record_id, 'identifier': rel.get('identifier'),'scheme': rel.get('scheme'), 'type': rel.get('type') })    
+                await database.execute(f"""INSERT INTO {qn('relations')} (
+                                       record_id, identifier, scheme, type
+                                       ) VALUES (
+                                       :rid, :identifier, :scheme, :type) 
+                                       ON CONFLICT DO NOTHING""", 
+                                       values={'rid': record_id, 
+                                               'identifier': rel.get('identifier'),
+                                               'scheme': rel.get('scheme'), 
+                                               'type': rel.get('type') })    
     # sources
     for src in sources:
         await upsert_source(record_id, src)
