@@ -56,26 +56,19 @@ dbname=os.environ.get("POSTGRES_DB",'')
 user=os.environ.get("POSTGRES_USER",'')
 password=os.environ.get("POSTGRES_PASSWORD",'')
 DATABASE_URL = os.getenv('DATABASE_URL') or f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
-
-SOURCE_TABLE = os.getenv('SOURCE_TABLE', 'items')
-SOURCE_SOURCE_TABLE = os.getenv('SOURCE_SOURCE_TABLE', 'sources')
-TARGET_SCHEMA = os.getenv('TARGET_SCHEMA', '')  # include trailing dot for schema-qualified names
+SCHEMA_PREFIX = os.getenv('SCHEMA', 'metadata')  # include trailing dot for schema-qualified names
 
 if not DATABASE_URL:
     logger.error('DATABASE_URL not set.')
     sys.exit(1)
 
-# Helper: qualified name builder
-SCHEMA_PREFIX = TARGET_SCHEMA or ''
-
 def qn(table: str) -> str:
-    return f"{SCHEMA_PREFIX}{table}"
+    return f"{SCHEMA_PREFIX}{'.' if SCHEMA_PREFIX else ''}{table}"
 
 # Database instance
 database = databases.Database(DATABASE_URL)
 
 # Utilities
-
 def compute_md5_string(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
@@ -109,10 +102,9 @@ def dict_merge(dct, merge_dct):
 # DDL (same tables as before) - kept minimal; assumes JSONB available on PG; on sqlite it will be TEXT
 async def create_tables():
     schema_prefix = SCHEMA_PREFIX
-    # create schema if needed (only when TARGET_SCHEMA contains a name)
-    if TARGET_SCHEMA and TARGET_SCHEMA.endswith('.') and len(TARGET_SCHEMA) > 1:
-        schema_name = TARGET_SCHEMA[:-1]
-        await database.execute(f'CREATE SCHEMA IF NOT EXISTS {schema_name}')
+    # create schema if needed
+    if SCHEMA_PREFIX:
+        await database.execute(f'CREATE SCHEMA IF NOT EXISTS {SCHEMA_PREFIX}')
 
     is_sqlite = DATABASE_URL.startswith('sqlite')
     if is_sqlite:
@@ -605,7 +597,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
         row = None
         kws = intl_list(v.get('keywords',{}) or {})
         thes_name = intl_str(v.get('vocabulary',{}).get('name','')).strip() or ''
-        thes_url = v.get('vocabulary',{}).get('url', '').strip() or ''
+        thes_url = (v.get('vocabulary',{}).get('url') or '').strip() or ''
         for kw in kws: # todo: this assumes kw is a str (startswith('http')?), not a uri+label -> understand how this info could be ingested/communicated
             if isinstance(kw,dict):
                 if 'label' in kw:
@@ -642,7 +634,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                                     INSERT INTO {qn('subjects')} (
                                         label, thesaurus_url
                                     ) VALUES (
-                                        :label :thes_url) RETURNING id""", 
+                                        :label, :thes_url) RETURNING id""", 
                                     values={'label': kw, 'thes_url': thes_url})
                             subject_id = int(row2['id'])
                     elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
@@ -873,9 +865,11 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
     # is not already in records
     query = f"""
         SELECT identifier, identifiertype, resultobject,
-        resulttype, hash, source, project, turtle, 
-        (select turtle_prefix from {SOURCE_SOURCE_TABLE} 
-        where name = s.source) as ttl_pref, doimetadata, insert_date FROM {SOURCE_TABLE} s 
+          resulttype, hash, source, project, turtle, (   
+            select turtle_prefix from harvest.sources 
+            where name = s.source
+          ) as ttl_pref, doimetadata, insert_date 
+        FROM harvest.items s 
         WHERE (NOT EXISTS (
             SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
@@ -963,7 +957,7 @@ async def main():
     await database.connect()
     await create_tables()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
-    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 100)
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 1000)
     if PROCESS_MODE == 'UPDATE':
         await reprocess_rows()
     else:
