@@ -616,7 +616,10 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                         subject_id = int(row['id'])
                     else:
                         row2 = await database.fetch_one(f"""INSERT INTO {qn('subjects')} 
-                                                        (uri) VALUES (:uri ) RETURNING id""", 
+                                                        (uri) VALUES (:uri) 
+                                                        ON conflict(uri) 
+                                                        DO UPDATE SET uri = EXCLUDED.uri 
+                                                        RETURNING id""", 
                                                         values={'uri': kw})
                         subject_id = int(row2['id'])
                 else: # query by parts
@@ -624,7 +627,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                     if thes_url and thes_url.strip() != '':
                         row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
                                                        WHERE lower(label) = :label 
-                                                       AND thesaurus_url = :thes_url""", 
+                                                       AND coalesce(thesaurus_url, '') = :thes_url""", 
                                                 values={'label': kw, 'thes_url': thes_url })
                         
                         if row:
@@ -634,7 +637,11 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                                     INSERT INTO {qn('subjects')} (
                                         label, thesaurus_url
                                     ) VALUES (
-                                        :label, :thes_url) RETURNING id""", 
+                                        :label, :thes_url
+                                    ) ON conflict(
+                                        :label, :thes_url
+                                    ) DO UPDATE SET label = EXCLUDED.label
+                                    RETURNING id;""", 
                                     values={'label': kw, 'thes_url': thes_url})
                             subject_id = int(row2['id'])
                     elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
@@ -649,7 +656,11 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                                     INSERT INTO {qn('subjects')} (
                                         label, thesaurus_name
                                     ) VALUES (
-                                        :label, :thes_name) RETURNING id""", 
+                                        :label, :thes_name 
+                                    ) ON conflict(
+                                        :label, :thes_name
+                                    ) DO UPDATE SET label = EXCLUDED.label
+                                    RETURNING id;""", 
                                     values={'label': kw, 'thes_name': thes_name.lower()})
                             subject_id = int(row2['id'])
                     
@@ -666,7 +677,11 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                                 INSERT INTO {qn('subjects')} (
                                     label, thesaurus_name, thesaurus_url
                                 ) VALUES (
-                                    :label, :thes_name, :thes_url) RETURNING id""", 
+                                    :label, :thes_name, :thes_url
+                                ) ON conflict(
+                                    :thes_name, :thes_url
+                                ) DO UPDATE SET label = EXCLUDED.label
+                                    RETURNING id;""", 
                                 values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
                             subject_id = int(row2['id'])
 
