@@ -47,8 +47,7 @@ Run the process in a docker container. Set up the .env for the database connecti
 
 ```
 docker run --env-file .env ghcr.io/soilwise-he/md-harmonization python process.py
-``
-
+```
 
 ## High-Level Workflow
 
