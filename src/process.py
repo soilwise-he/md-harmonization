@@ -607,6 +607,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                     continue
                 
             if kw not in (None,''):
+                subject_id = None
                 if kw.lower().startswith('http'): # query by subject uri
                     row = await database.fetch_one(f"""SELECT id 
                                                    FROM {qn('subjects')} 
@@ -633,17 +634,20 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                         if row:
                             subject_id = int(row['id'])
                         else:
-                            row2 = await database.fetch_one(f"""
-                                    INSERT INTO {qn('subjects')} (
-                                        label, thesaurus_url
-                                    ) VALUES (
-                                        :label, :thes_url
-                                    ) ON conflict(
-                                        :label, :thes_url
-                                    ) DO UPDATE SET label = EXCLUDED.label
-                                    RETURNING id;""", 
-                                    values={'label': kw, 'thes_url': thes_url})
-                            subject_id = int(row2['id'])
+                            try:
+                                row2 = await database.fetch_one(f"""
+                                        INSERT INTO {qn('subjects')} (
+                                            label, thesaurus_url
+                                        ) VALUES (
+                                            :label, :thes_url
+                                        ) ON conflict(
+                                            label, thesaurus_url
+                                        ) DO UPDATE SET label = EXCLUDED.label
+                                        RETURNING id;""", 
+                                        values={'label': kw, 'thes_url': thes_url})
+                                subject_id = int(row2['id'])
+                            except:
+                                None
                     elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
                         row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
                                                        WHERE lower(label) = :label 
@@ -652,17 +656,20 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                         if row:
                             subject_id = int(row['id'])
                         else:
-                            row2 = await database.fetch_one(f"""
-                                    INSERT INTO {qn('subjects')} (
-                                        label, thesaurus_name
-                                    ) VALUES (
-                                        :label, :thes_name 
-                                    ) ON conflict(
-                                        :label, :thes_name
-                                    ) DO UPDATE SET label = EXCLUDED.label
-                                    RETURNING id;""", 
-                                    values={'label': kw, 'thes_name': thes_name.lower()})
-                            subject_id = int(row2['id'])
+                            try: 
+                                row2 = await database.fetch_one(f"""
+                                        INSERT INTO {qn('subjects')} (
+                                            label, thesaurus_name
+                                        ) VALUES (
+                                            :label, :thes_name 
+                                        ) ON conflict(
+                                            label, thesaurus_name
+                                        ) DO UPDATE SET label = EXCLUDED.label
+                                        RETURNING id;""", 
+                                        values={'label': kw, 'thes_name': thes_name.lower()})
+                                subject_id = int(row2['id'])
+                            except:
+                                None
                     
                     else: #no thesaurus
                         row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')}
@@ -673,25 +680,31 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                         if row:
                             subject_id = int(row['id'])
                         else:
-                            row2 = await database.fetch_one(f"""
-                                INSERT INTO {qn('subjects')} (
-                                    label, thesaurus_name, thesaurus_url
-                                ) VALUES (
-                                    :label, :thes_name, :thes_url
-                                ) ON conflict(
-                                    :thes_name, :thes_url
-                                ) DO UPDATE SET label = EXCLUDED.label
-                                    RETURNING id;""", 
-                                values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
-                            subject_id = int(row2['id'])
+                            try:
+                                row2 = await database.fetch_one(f"""
+                                    INSERT INTO {qn('subjects')} (
+                                        label, thesaurus_name, thesaurus_url
+                                    ) VALUES (
+                                        :label, :thes_name, :thes_url
+                                    ) ON conflict(
+                                        label, thesaurus_name, thesaurus_url
+                                    ) DO UPDATE SET label = EXCLUDED.label
+                                        RETURNING id;""", 
+                                    values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
+                                subject_id = int(row2['id'])
+                            except:
+                                None
 
-                if subject_id not in [None,'']:                   
-                    await database.execute(f"""INSERT INTO {qn('record_subject')} (
-                                        record_id, subject_id
-                                        ) VALUES (:rid, :sid) 
-                                        ON CONFLICT DO NOTHING""", 
-                                        values={'rid': record_id, 
-                                                'sid': subject_id})
+                if subject_id not in [None,'']:
+                    try:       
+                        await database.execute(f"""INSERT INTO {qn('record_subject')} (
+                                            record_id, subject_id
+                                            ) VALUES (:rid, :sid) 
+                                            ON CONFLICT DO NOTHING""", 
+                                            values={'rid': record_id, 
+                                                    'sid': subject_id})
+                    except:
+                        None
 
     # relations
     sources = []
@@ -907,6 +920,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         ttl_pref = str(r['ttl_pref']) or ''
         doimetadata = r['doimetadata']
         identifiertype = r['identifiertype']
+        insert_date = r['insert_date'] or ''
         ahash = r['hash']
 
         mcf = None
