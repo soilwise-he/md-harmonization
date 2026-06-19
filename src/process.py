@@ -883,7 +883,7 @@ async def reprocess_rows():
         harvest_date= r['harvest_date']
         await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, project=None, harvest_date=harvest_date, modus="update")
 
-async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
+async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=1000):
 
     filtersql=""
     if PROCESS_SOURCE:
@@ -893,11 +893,11 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
     # is not already in records
     query = f"""
         SELECT identifier, identifiertype, resultobject,
-          resulttype, hash, source, project, turtle, (   
+          resulttype, hash, source, project, turtle, error, (   
             select turtle_prefix from harvest.sources 
             where name = s.source
           ) as ttl_pref, doimetadata, insert_date 
-        FROM harvest.items s 
+        FROM harvest.vw_unique_harvest_items s 
         WHERE (NOT EXISTS (
             SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
@@ -920,6 +920,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         ttl_pref = str(r['ttl_pref']) or ''
         doimetadata = r['doimetadata']
         identifiertype = r['identifiertype']
+        error = r['error']
         insert_date = r['insert_date'] or ''
         ahash = r['hash']
 
@@ -928,22 +929,23 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         try:
         # some sources log to various source-fields
         # based on source select the relevant source field
-            logger.info(f'parse {source}:{identifier}')
-            if identifiertype == 'doi' and doimetadata not in (None,'') and not doimetadata.startswith('Failed'):
+            #logger.info(f'parse {source}:{identifier}')
+            if identifiertype == 'doi' or doimetadata not in (None,''):
+                if doimetadata in (None,''):
+                    raise ValueError(f'Empty doi metadata for {identifier} from {source}: {error}')
                 txt = doimetadata
                 mcf = import_metadata('openaire', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {identifier} from {source} as doi metadata')
-            elif doimetadata not in (None,'') and not doimetadata.startswith('Failed'):
-                # this is the parsed metadata, for example from youtube (but not openaire, see case above)
-                txt = doimetadata
-                mcf = import_metadata('autodetect', txt)
-                if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
-                    raise ValueError(f'Failed parsing {identifier} from {identifiertype}:{source} as parsed metadata')
+                    mcf = import_metadata('autodetect', txt) # try again as autodetect -> Datacite?
+                    if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
+                        raise ValueError(f'Failed parsing {identifier} from {source} as autodetect')
             elif resulttype == 'schema.org' and txt not in [None,'']:
                 mcf = import_metadata('schema-org', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
                     raise ValueError(f'Failed parsing {identifier} from {source} as schema.org')
+                elif mcf['identification'].get('title','') != '':
+                    # requires at least title (case impact4soil)
+                    raise ValueError(f'Incomplete record {identifier} from {source} as schema.org')
             elif resulttype == 'iso19139:2007' or '<gmd:MD_Metadata' in txt:
                 mcf = import_metadata('iso19139', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
