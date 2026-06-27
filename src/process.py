@@ -899,9 +899,9 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=1000):
           ) as ttl_pref, doimetadata, insert_date 
         FROM harvest.vw_unique_harvest_items s 
         WHERE (NOT EXISTS (
-            SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
+            SELECT 1 FROM metadata.records_failed r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
-            SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash)) 
+            SELECT 1 FROM metadata.records_processed r WHERE r.hash = s.hash)) 
         {filtersql}   
         LIMIT {RECORDS_PER_PAGE}"""
 
