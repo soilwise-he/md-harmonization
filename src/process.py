@@ -373,7 +373,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     mmd_= mcf.get('metadata',{})
     mid_= mcf.get('identification',{})
     mci_= mcf.get('content_info',{})
-    md_date = parse_date((mmd_.get('dates') or {}).get('revision')) or parse_date((mmd_.get('dates') or {}).get('creation'))
+    md_date = parse_date((mmd_.get('dates') or {}).get('revision')) or parse_date((mmd_.get('dates') or {}).get('creation')) or parse_date((mmd_.get('dates') or {}).get('publication'))
     md_lang = intl_str(mmd_.get('language',''))
     language = intl_str(mid_.get('language',mmd_.get('language','')))
     edition = mid_.get('edition','')
@@ -476,20 +476,32 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                 'scheme': ('uri' if idt.startswith('http') else 'uuid'),
                 'identifier': idt })
     for tid in a_ids:
-        exists2 = await database.fetch_one(f"""
-            SELECT record_id FROM {qn('alternate_identifiers')} WHERE (
-            alt_identifier = :identifier and record_id = :fk_identifier ) OR (
-            alt_identifier = :fk_identifier and record_id = :identifier)""", 
-            values={'identifier': record_id, 'fk_identifier': tid['identifier'] })
-        if not exists2:
-            vals = {
-                    'identifier': record_id, 
-                    'fk_identifier': tid['identifier'], 
-                    'scheme': tid.get('scheme', '') }
-            qry = f"insert into {qn('alternate_identifiers')} (record_id, alt_identifier, scheme) values (:identifier, :fk_identifier, :scheme )"
-            await database.execute(qry, values=vals)
+        if tid.get('identifier') not in [None,''] and tid.get('identifier') != record_id and not tid.get('identifier').startswith('50|'):
+            exists2 = await database.fetch_one(f"""
+                SELECT record_id FROM {qn('alternate_identifiers')} WHERE (
+                alt_identifier = :identifier and record_id = :fk_identifier ) OR (
+                alt_identifier = :fk_identifier and record_id = :identifier)""", 
+                values={'identifier': record_id, 'fk_identifier': tid['identifier'] })
+            if not exists2:
+                vals = {
+                        'identifier': record_id, 
+                        'fk_identifier': tid['identifier'], 
+                        'scheme': tid.get('scheme', '') }
+                qry = f"insert into {qn('alternate_identifiers')} (record_id, alt_identifier, scheme) values (:identifier, :fk_identifier, :scheme )"
+                await database.execute(qry, values=vals)
     
-
+        # append to distributions if the identifier is a URL and not already present
+        if (tid.get('scheme') or '') == 'doi':
+            found = False
+            for d in mcf.get('distribution', {}).values():
+                if tid.get('identifier') in d.get('url'):
+                    break
+            if not found:
+                mcf.setdefault('distribution', {})[f"dist_{tid.get('identifier')}"] = {
+                    'url': tid.get('identifier'),
+                    'type': 'link',
+                    'name': intl_str(mcf.get('identification').get('title', '')) }
+                
     # collect pers-orgs for pers-org matching
     orgs_=[]
     pers_=[]
