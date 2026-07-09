@@ -369,13 +369,11 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
             elif r['mcf']:
                 dict_merge(mcf, json.loads(r['mcf']))
 
-
-
     # process mcf
     mmd_= mcf.get('metadata',{})
     mid_= mcf.get('identification',{})
     mci_= mcf.get('content_info',{})
-    md_date = parse_date(mmd_.get('datestamp'))
+    md_date = parse_date((mmd_.get('dates') or {}).get('revision')) or parse_date((mmd_.get('dates') or {}).get('creation'))
     md_lang = intl_str(mmd_.get('language',''))
     language = intl_str(mid_.get('language',mmd_.get('language','')))
     edition = mid_.get('edition','')
