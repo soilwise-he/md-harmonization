@@ -135,7 +135,7 @@ async def process_workflow(record_id, mcf, source, hash, mode):
                 WHERE identifier = :id AND source = :source""",
             values={
                 'id': record_id,
-                'hash': md5_hash,
+                'hash': hash,
                 'source': source,
                 'mode': mode,
                 'mcf': json.dumps(mcf, default=str)
@@ -218,15 +218,11 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
     # md5 for stored metadata (after augmentation).
 
-    
+
     # sanity checks on mcf
-    print('1',record_id)
-    mcf_sanity_check(identifier=record_id, mcf=mcf_in)
-    print('2',record_id)
     await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
     # deduplication
     mcf = await mcf_deduplicate(identifier=record_id, mcf=mcf_in)
-    print('3',record_id)
 
     # process mcf
     mmd_= mcf.get('metadata',{})
