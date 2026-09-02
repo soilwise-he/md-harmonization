@@ -24,7 +24,7 @@ Usage:
 """
 
 from genericpath import exists
-import os, sys, yaml, json, copy
+import os, sys, yaml, json, copy, re
 import hashlib
 import logging
 import traceback
@@ -74,6 +74,11 @@ def compute_md5_string(text: Optional[str]) -> Optional[str]:
         return None
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
+DOI_PATTERN = re.compile(r"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$", re.I)
+
+def is_doi(value: str) -> bool:
+    return bool(DOI_PATTERN.fullmatch(value.strip()))
+
 # from https://gist.github.com/angstwad/bf22d1822c38a92ec0a9
 def dict_merge(dct, merge_dct):
     """
@@ -99,218 +104,110 @@ def dict_merge(dct, merge_dct):
                 print(e,"; k:",k,"; v:",v)
 
 
-# DDL (same tables as before) - kept minimal; assumes JSONB available on PG; on sqlite it will be TEXT
-async def create_tables():
-    schema_prefix = SCHEMA_PREFIX
-    # create schema if needed
-    if SCHEMA_PREFIX:
-        await database.execute(f'CREATE SCHEMA IF NOT EXISTS {SCHEMA_PREFIX}')
-
-    is_sqlite = DATABASE_URL.startswith('sqlite')
-    if is_sqlite:
-        id_def = 'INTEGER PRIMARY KEY AUTOINCREMENT'
+async def process_workflow(record_id, mcf, source, hash, mode):
+    # check if identifier in source already processed? -> update else insert 
+    exists = await database.fetch_all(f"""
+            SELECT identifier FROM {qn('records_processed')} 
+            WHERE identifier = :identifier and source = :source""", 
+            values={'identifier': record_id,
+                    'source': source })
+    mode = 'insert'
+    if not exists:
+        mode = 'update' 
+    # now enter process step
+    if mode == 'insert':
+        await database.fetch_one(
+            f"""INSERT INTO {qn('records_processed')} (
+                identifier, hash, source, mode, project, mcf
+            ) VALUES (
+                :id, :hash, :source, :mode, :project, :mcf)""",
+            values={
+                'id': record_id,
+                'hash': hash,
+                'source': source,
+                'mode': mode,
+                'mcf': json.dumps(mcf, default=str)
+            })
     else:
-        id_def = 'SERIAL PRIMARY KEY'
+        await database.fetch_one(
+            f"""UPDATE {qn('records_processed')} SET 
+                hash = :hash, mode = :mode, mcf = :mcf
+                WHERE identifier = :id AND source = :source""",
+            values={
+                'id': record_id,
+                'hash': md5_hash,
+                'source': source,
+                'mode': mode,
+                'mcf': json.dumps(mcf, default=str)
+            })
+        
 
+def mcf_sanity_check(identifier, mcf):
+    # some checks on any incoming mcf
+    if 'doi.org/' in identifier:
+        identifier = identifier.split('doi.org/').pop().split(' ')[0]
 
-    # Build DDL as one string but execute statements individually because asyncpg
-    # (and the `databases` library) do not allow multiple SQL commands in a single prepared statement.
-    ddl = f"""
-    CREATE TABLE IF NOT EXISTS {qn('records')} (
-        identifier TEXT,
-        md_lang TEXT,
-        md_date timestamp without time zone,
-        harvest_date timestamp without time zone,
-        source TEXT, 
-        title TEXT,
-        abstract TEXT,
-        language TEXT,
-        edition TEXT,
-        format TEXT,
-        type TEXT,
-        revisiondate timestamp without time zone,
-        creationdate timestamp without time zone,
-        publicationdate timestamp without time zone,
-        embargodate timestamp without time zone,
-        resolution TEXT,
-        denominator TEXT,
-        accessconstraints TEXT,
-        license TEXT,
-        rights TEXT,
-        lineage TEXT,
-        spatial TEXT,
-        spatial_desc TEXT,
-        datamodel TEXT,
-        temporal_start timestamp without time zone,
-        temporal_end timestamp without time zone,
-        thumbnail TEXT,
-        md5_hash TEXT,
-        raw_mcf TEXT,
-        PRIMARY KEY (identifier, source),
-        UNIQUE (md5_hash)
-    );
+    ## if identifier is not a doi, and alt-identifiers has a doi, replace identifier
+    if not is_doi(identifier):
+        for i in (mcf['metadata'].get('additional_identifiers' or [])):
+            i2 = i.get('identifier','').split('doi.org/').pop().split(' ')[0]
+            if is_doi(i2):
+                mcf['metadata']['identifier'] = i2
+                identifier = i2
+                i['identifier'] = identifier
+                break
 
-    CREATE TABLE IF NOT EXISTS {qn('records_failed')} (
-    identifier text ,
-    hash text NOT NULL,
-    error text,
-    date timestamp without time zone,
-    CONSTRAINT records_failed_pkey PRIMARY KEY (hash)
-    );
+    ## if identifier is a doi, make sure it is in distributions
+    if is_doi(identifier):
+        hasDoi = False
+        for k,v in mcf.get('distribution',{}).items():
+            if v.get('url','').split('doi.org/').pop() == identifier:
+                hasDoi = True
+                break
+        if not hasDoi:
 
-    CREATE TABLE IF NOT EXISTS {qn('records_processed')} (
-    identifier text,
-    hash text NOT NULL,
-    source text,
-    final_id text,
-    mode text,
-    date timestamp without time zone,
-    CONSTRAINT records_processed_pkey PRIMARY KEY (hash)
-    );
+            mcf.setdefault("distribution", {})[identifier] = {
+                'url' : 'https://doi.org/'+identifier,
+                'type': 'WWW:LINK',
+                'name': mcf.get('identification',{}).get('title','doi'), 
+                'function': 'download'
+            }
     
-    CREATE TABLE IF NOT EXISTS {qn('person')} (
-        id {id_def},
-        name TEXT,
-        alias TEXT,
-        email TEXT,
-        orcid TEXT,
-        UNIQUE(id)
-    );
+async def mcf_deduplicate(identifier, mcf):
+    # deduplication of records
 
-    CREATE TABLE IF NOT EXISTS {qn('organization')} (
-        id {id_def},
-        name TEXT,
-        alias TEXT,
-        phone TEXT,
-        ror TEXT,
-        address TEXT,
-        postalcode TEXT,
-        city TEXT,
-        administrativearea TEXT,
-        country TEXT,
-        url TEXT,
-        UNIQUE(id)
-    );
+    all_identifiers = [identifier]
+    # add alt ids
+    for id in mcf.get('metadata',{}).get('additional_identifiers',[]):
+        if id.get('identifier'):
+            all_identifiers.append(id.get('identifier')) 
+    ids_as_str = ",".join([f"'{i}'" for i in all_identifiers])
+    exists = await database.fetch_all(f"""
+                SELECT identifier, mcf, source 
+                FROM {qn('records_processed')}
+                WHERE identifier in (
+                    select record_id from metadata.alternate_identifiers 
+                    where record_id in ({ids_as_str})
+                    or alt_identifier in ({ids_as_str}) 
+                )""", 
+                values={})
 
-    CREATE TABLE IF NOT EXISTS {qn('contact_in_record')} (
-        id {id_def},
-        fk_organization INTEGER REFERENCES {qn('organization')}(id) ON DELETE CASCADE,
-        fk_person INTEGER REFERENCES {qn('person')}(id) ON DELETE CASCADE,
-        record_id TEXT,
-        role TEXT,
-        position TEXT,
-        UNIQUE (fk_organization, fk_person, record_id, role)
-    );    
+    final_mcf = {}
+    # prefer openaire as a source
+    for r in exists:
+        if r['source'] == 'openaire':
+            final_mcf = json.loads(r['mcf'])
+            # use this as main identifier
+            identifier = r['identifier']
+            # a second arrival here is not expected, but also not problematic
 
-    CREATE TABLE IF NOT EXISTS {qn('subjects')} (
-        id {id_def},
-        uri TEXT,
-        label TEXT,
-        thesaurus_name TEXT,
-        thesaurus_url TEXT
-    );
+    for r in exists:
+        if r['source'] != 'openaire':
+            t_mcf = json.loads(r['mcf'])
+            if 'identification' in t_mcf:
+                dict_merge(final_mcf,  t_mcf)
 
-    CREATE TABLE IF NOT EXISTS {qn('record_subject')} (
-        id {id_def},
-        record_id TEXT,
-        subject_id INTEGER REFERENCES {qn('subjects')}(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('attributes')} (
-        id {id_def},
-        record_id TEXT,
-        name TEXT,
-        title TEXT,
-        url TEXT,
-        units TEXT,
-        type TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('relations')} (
-        id {id_def},
-        record_id TEXT,
-        identifier TEXT,
-        scheme TEXT,
-        type TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('sources')} (
-        name TEXT PRIMARY KEY,
-        description TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('record_sources')} (
-        record_id TEXT,
-        fk_source TEXT REFERENCES {qn('sources')}(name) ON DELETE CASCADE,
-        PRIMARY KEY (record_id, fk_source)
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('record_in_project')} (
-        id {id_def},
-        record_id TEXT UNIQUE,
-        project TEXT
-    );    
-
-    CREATE TABLE IF NOT EXISTS {qn('alternate_identifiers')} (
-        record_id TEXT,
-        alt_identifier TEXT,
-        scheme TEXT,
-        PRIMARY KEY (record_id, alt_identifier)
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('distributions')} (
-        id {id_def},
-        record_id TEXT,
-        name TEXT,
-        format TEXT,
-        url TEXT,
-        description TEXT 
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('augments')} (
-        record_id text,
-        property text,
-        value text,
-        process text,
-        date timestamp with time zone DEFAULT now()
-    );
-
-    CREATE TABLE IF NOT EXISTS {qn('augment_status')} (
-        record_id text,
-        status text,
-        process text,
-        date timestamp with time zone DEFAULT now()
-    );
-
-    CREATE TABLE IF NOT EXISTS metadata.employment
-    (
-    person_id int NOT NULL,
-    organization_id int NOT NULL,
-    role text,
-    start_date timestamp without time zone,
-    end_date timestamp without time zone,
-    source text,
-    date timestamp without time zone DEFAULT now(),
-    PRIMARY KEY (person_id, organization_id)
-    );
-
-    """
-
-    # Split into individual statements and execute one by one
-    statements = [s.strip() for s in ddl.split(';') if s.strip()]
-    for stmt in statements:
-        # add semicolon back for clarity (not strictly required)
-        try:
-            await database.execute(stmt + ';')
-        except Exception:
-            # Some DB backends (sqlite) may not like certain statements (e.g. JSONB types) or semicolons —
-            # try without appending semicolon if it failed.
-            try:
-                await database.execute(stmt)
-            except Exception as e:
-                logger.exception('Failed executing DDL statement: %s', e)
-    logger.info('Ensured tables (prefix=%s)', SCHEMA_PREFIX)
-
+    return final_mcf
 
 async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_hash: Optional[str], source: str, project: str, harvest_date = None, modus='insert') -> str:
 
@@ -321,53 +218,15 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
     # md5 for stored metadata (after augmentation).
 
-    #check if identifier already present?
-    exists = await database.fetch_all(f"""
-            SELECT identifier, source, mcf FROM {qn('records_processed')} 
-            WHERE identifier = :identifier""", 
-            values={'identifier': record_id})
-    mode = 'insert'
-    mcf = {}
-    if exists:
-        for r in exists:
-            if r['source'] == source:
-                mode = 'update' 
-
-    if mode == 'insert':
-        await database.fetch_one(
-            f"""INSERT INTO {qn('records_processed')} (
-                identifier, hash, source, mode, project, mcf
-            ) VALUES (
-                :id, :hash, :source, :mode, :project, :mcf)""",
-            values={
-                'id': record_id,
-                'hash': md5_hash,
-                'source': source,
-                'mode': mode,
-                'project': project,
-                'mcf': json.dumps(mcf_in, default=str)
-            })
-        mcf = mcf_in
-    else:
-        await database.fetch_one(
-            f"""UPDATE {qn('records_processed')} SET 
-                hash = :hash, mode = :mode, project = :project, mcf = :mcf
-                WHERE identifier = :id AND source = :source""",
-            values={
-                'id': record_id,
-                'hash': md5_hash,
-                'source': source,
-                'mode': mode,
-                'project': project,
-                'mcf': json.dumps(mcf_in, default=str)
-            })
-        # merge mcf's
-
-        for r in exists:
-            if r['source'] == source:
-                dict_merge(mcf, mcf_in)
-            elif r['mcf']:
-                dict_merge(mcf, json.loads(r['mcf']))
+    
+    # sanity checks on mcf
+    print('1',record_id)
+    mcf_sanity_check(identifier=record_id, mcf=mcf_in)
+    print('2',record_id)
+    await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
+    # deduplication
+    mcf = await mcf_deduplicate(identifier=record_id, mcf=mcf_in)
+    print('3',record_id)
 
     # process mcf
     mmd_= mcf.get('metadata',{})
@@ -893,7 +752,7 @@ async def reprocess_rows():
         harvest_date= r['harvest_date']
         await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, project=None, harvest_date=harvest_date, modus="update")
 
-async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=1000):
+async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
 
     filtersql=""
     if PROCESS_SOURCE:
@@ -991,14 +850,12 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=1000):
                     'error': f"Import in {source}: {e}: {traceback.format_exc()}"
                 })
 
-
 async def main():
     PROCESS_MODE = os.getenv('PROCESS_MODE') or "INSERT"
     print("Processing",PROCESS_MODE)
     await database.connect()
-    await create_tables()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
-    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 1000)
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 50)
     if PROCESS_MODE == 'UPDATE':
         await reprocess_rows()
     else:
@@ -1006,7 +863,7 @@ async def main():
             recs = await database.fetch_all(f"select name from harvest.sources")
             for r in recs:
                 logger.info(f"Processing {r['name']}")
-                await process_source_rows(r['name'], 5)
+                await process_source_rows(r['name'], 50)
         elif len(PROCESS_SOURCES) > 0 :
             for r in PROCESS_SOURCES:
                 await process_source_rows(r, RECORDS_PER_PAGE) 
