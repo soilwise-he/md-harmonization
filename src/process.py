@@ -607,7 +607,7 @@ async def upsert_source(record_id,src):
 async def upsert_project(record_id, prj):
     if prj not in (None,'','None'):
         await database.execute(f"INSERT INTO {qn('record_in_project')} (record_id, project) VALUES (:rid, :prj) ON CONFLICT DO NOTHING",
-                            values={'rid': record_id, 'prj': prj})
+                            values={'rid': record_id, 'prj': prj.split('/').pop()})
 
 async def upsert_pers(c,orcid=None):
     if orcid:
