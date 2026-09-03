@@ -767,6 +767,13 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
             SELECT 1 FROM metadata.records_failed r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
             SELECT 1 FROM metadata.records_processed r WHERE r.hash = s.hash)) 
+        AND NOT (
+                  (
+                    identifiertype = 'doi' OR
+            	    (identifiertype = 'uri' AND identifier like '%%doi.org%%')
+				  ) AND
+				  coalesce(doimetadata, '') = ''
+                )
         {filtersql}   
         LIMIT {RECORDS_PER_PAGE}"""
 
