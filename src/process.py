@@ -131,7 +131,7 @@ async def process_workflow(record_id, mcf, source, hash, mode):
     else:
         await database.fetch_one(
             f"""UPDATE {qn('records_processed')} SET 
-                hash = :hash, mode = :mode, mcf = :mcf
+                hash = :hash, mode = :mode, mcf = :mcf, date = NOW()
                 WHERE identifier = :id AND source = :source""",
             values={
                 'id': record_id,
@@ -149,7 +149,7 @@ def mcf_sanity_check(identifier, mcf):
 
     ## if identifier is not a doi, and alt-identifiers has a doi, replace identifier
     if not is_doi(identifier):
-        for i in (mcf['metadata'].get('additional_identifiers' or [])):
+        for i in (mcf['metadata'].get('additional_identifiers') or []):
             i2 = i.get('identifier','').split('doi.org/').pop().split(' ')[0]
             if is_doi(i2):
                 mcf['metadata']['identifier'] = i2
@@ -165,23 +165,23 @@ def mcf_sanity_check(identifier, mcf):
                 hasDoi = True
                 break
         if not hasDoi:
-
             mcf.setdefault("distribution", {})[identifier] = {
                 'url' : 'https://doi.org/'+identifier,
                 'type': 'WWW:LINK',
                 'name': mcf.get('identification',{}).get('title','doi'), 
                 'function': 'download'
             }
-    
+
 async def mcf_deduplicate(identifier, mcf):
     # deduplication of records
-
     all_identifiers = [identifier]
     # add alt ids
     for id in mcf.get('metadata',{}).get('additional_identifiers',[]):
         if id.get('identifier'):
             all_identifiers.append(id.get('identifier')) 
     ids_as_str = ",".join([f"'{i}'" for i in all_identifiers])
+
+    # get all records from processed which id is in duplicates (or itself)
     exists = await database.fetch_all(f"""
                 SELECT identifier, mcf, source 
                 FROM {qn('records_processed')}
@@ -191,8 +191,11 @@ async def mcf_deduplicate(identifier, mcf):
                     or alt_identifier in ({ids_as_str}) 
                 )""", 
                 values={})
-
+    
     final_mcf = {}
+    if not exists: # record is not yet in catalogue; use this
+        final_mcf = mcf
+
     # prefer openaire as a source
     for r in exists:
         if r['source'] == 'openaire':
@@ -200,7 +203,7 @@ async def mcf_deduplicate(identifier, mcf):
             # use this as main identifier
             identifier = r['identifier']
             # a second arrival here is not expected, but also not problematic
-
+    
     for r in exists:
         if r['source'] != 'openaire':
             t_mcf = json.loads(r['mcf'])
@@ -219,14 +222,23 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # md5 for stored metadata (after augmentation).
 
 
-    # sanity checks on mcf
+    # workflow
     await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
     # deduplication
     mcf = await mcf_deduplicate(identifier=record_id, mcf=mcf_in)
 
+    mcf_sanity_check(record_id, mcf)
+    
+    # metadata should at least have a title
+    mid_= mcf.get('identification',{})
+    if mid_.get('title') in [None,'']:
+        await log_failure(record_id, md5_hash, 'Empty title after dedup from {source}')
+        logger.warning(f'Empty title after dedup {record_id}')
+        return None
+
     # process mcf
     mmd_= mcf.get('metadata',{})
-    mid_= mcf.get('identification',{})
+
     mci_= mcf.get('content_info',{})
     md_date = parse_date((mmd_.get('dates') or {}).get('revision')) or parse_date((mmd_.get('dates') or {}).get('creation')) or parse_date((mmd_.get('dates') or {}).get('publication'))
     md_lang = intl_str(mmd_.get('language',''))
@@ -267,7 +279,6 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     temporal_end = parse_date(first_temporal_extent.get('end',None))
     title = intl_str(mid_.get('title',''))
     abstract = intl_str(mid_.get('abstract',''))
-
 
     # add record to source
     await upsert_source(record_id, source)
@@ -840,18 +851,21 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
                         
             # insert record and related entities
             record_id = await insert_record_and_related(mcf, identifier, md5_hash, source, project, r['insert_date'])
-
-            logger.info('record id %s for source %s', identifier, source)
+            if record_id:
+                logger.info('record id %s for source %s', identifier, source)
 
         except Exception as e:
             logger.error(f"Import in {source}: {e}: {traceback.format_exc()}")
-            await database.fetch_one(
-                f"INSERT INTO {qn('records_failed')} (identifier, hash, error, date) VALUES (:id, :hash, :error, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
-                values={
-                    'id': identifier,
-                    'hash': ahash,
-                    'error': f"Import in {source}: {e}: {traceback.format_exc()}"
-                })
+            await log_failure(identifier, md5_hash, f'Import failed {e}')
+
+async def log_failure(identifier, hash, error):
+    await database.fetch_one(
+        f"INSERT INTO {qn('records_failed')} (identifier, hash, error, date) VALUES (:id, :hash, :error, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
+        values={
+            'id': identifier,
+            'hash': hash,
+            'error': f"Import error: {error}: {traceback.format_exc()}"
+        })
 
 async def main():
     PROCESS_MODE = os.getenv('PROCESS_MODE') or "INSERT"
