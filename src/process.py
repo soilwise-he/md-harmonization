@@ -500,76 +500,77 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                                                         values={'uri': kw})
                         subject_id = int(row2['id'])
                 else: # query by parts
-                    kw = kw.lower() 
-                    if thes_url and thes_url.strip() != '':
-                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
-                                                       WHERE lower(label) = :label 
-                                                       AND coalesce(thesaurus_url, '') = :thes_url""", 
-                                                values={'label': kw, 'thes_url': thes_url })
+                    kws = kw.lower().replace(';','').split(',')
+                    for kywrd in [k.strip() for k in kws if k.strip()]:  
+                        if thes_url and thes_url.strip() != '':
+                            row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
+                                                        WHERE lower(label) = :label 
+                                                        AND coalesce(thesaurus_url, '') = :thes_url""", 
+                                                    values={'label': kywrd, 'thes_url': thes_url })
+                            
+                            if row:
+                                subject_id = int(row['id'])
+                            else:
+                                try:
+                                    row2 = await database.fetch_one(f"""
+                                            INSERT INTO {qn('subjects')} (
+                                                label, thesaurus_url
+                                            ) VALUES (
+                                                :label, :thes_url
+                                            ) ON conflict(
+                                                label, thesaurus_url
+                                            ) DO UPDATE SET label = EXCLUDED.label
+                                            RETURNING id;""", 
+                                            values={'label': kywrd, 'thes_url': thes_url})
+                                    subject_id = int(row2['id'])
+                                except:
+                                    None
+                        elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
+                            row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
+                                                        WHERE lower(label) = :label 
+                                                        AND lower(thesaurus_name) = :thes_name""", 
+                                                    values={'label': kywrd, 'thes_name': thes_name.lower() })
+                            if row:
+                                subject_id = int(row['id'])
+                            else:
+                                try: 
+                                    row2 = await database.fetch_one(f"""
+                                            INSERT INTO {qn('subjects')} (
+                                                label, thesaurus_name
+                                            ) VALUES (
+                                                :label, :thes_name 
+                                            ) ON conflict(
+                                                label, thesaurus_name
+                                            ) DO UPDATE SET label = EXCLUDED.label
+                                            RETURNING id;""", 
+                                            values={'label': kywrd, 'thes_name': thes_name.lower()})
+                                    subject_id = int(row2['id'])
+                                except:
+                                    None
                         
-                        if row:
-                            subject_id = int(row['id'])
-                        else:
-                            try:
-                                row2 = await database.fetch_one(f"""
+                        else: #no thesaurus
+                            row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')}
+                                                        WHERE label = :label
+                                                        AND coalesce(thesaurus_name, '') = ''
+                                                        AND coalesce(thesaurus_url, '') = ''""", 
+                                                    values={'label': kywrd })
+                            if row:
+                                subject_id = int(row['id'])
+                            else:
+                                try:
+                                    row2 = await database.fetch_one(f"""
                                         INSERT INTO {qn('subjects')} (
-                                            label, thesaurus_url
+                                            label, thesaurus_name, thesaurus_url
                                         ) VALUES (
-                                            :label, :thes_url
+                                            :label, :thes_name, :thes_url
                                         ) ON conflict(
-                                            label, thesaurus_url
+                                            label, thesaurus_name, thesaurus_url
                                         ) DO UPDATE SET label = EXCLUDED.label
-                                        RETURNING id;""", 
-                                        values={'label': kw, 'thes_url': thes_url})
-                                subject_id = int(row2['id'])
-                            except:
-                                None
-                    elif thes_name and thes_name.strip() != '': # query gives nill if thes_name = nill
-                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')} 
-                                                       WHERE lower(label) = :label 
-                                                       AND lower(thesaurus_name) = :thes_name""", 
-                                                values={'label': kw, 'thes_name': thes_name.lower() })
-                        if row:
-                            subject_id = int(row['id'])
-                        else:
-                            try: 
-                                row2 = await database.fetch_one(f"""
-                                        INSERT INTO {qn('subjects')} (
-                                            label, thesaurus_name
-                                        ) VALUES (
-                                            :label, :thes_name 
-                                        ) ON conflict(
-                                            label, thesaurus_name
-                                        ) DO UPDATE SET label = EXCLUDED.label
-                                        RETURNING id;""", 
-                                        values={'label': kw, 'thes_name': thes_name.lower()})
-                                subject_id = int(row2['id'])
-                            except:
-                                None
-                    
-                    else: #no thesaurus
-                        row = await database.fetch_one(f"""SELECT id FROM {qn('subjects')}
-                                                       WHERE label = :label
-                                                       AND coalesce(thesaurus_name, '') = ''
-                                                       AND coalesce(thesaurus_url, '') = ''""", 
-                                                values={'label': kw })
-                        if row:
-                            subject_id = int(row['id'])
-                        else:
-                            try:
-                                row2 = await database.fetch_one(f"""
-                                    INSERT INTO {qn('subjects')} (
-                                        label, thesaurus_name, thesaurus_url
-                                    ) VALUES (
-                                        :label, :thes_name, :thes_url
-                                    ) ON conflict(
-                                        label, thesaurus_name, thesaurus_url
-                                    ) DO UPDATE SET label = EXCLUDED.label
-                                        RETURNING id;""", 
-                                    values={'label': kw, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
-                                subject_id = int(row2['id'])
-                            except:
-                                None
+                                            RETURNING id;""", 
+                                        values={'label': kywrd, 'thes_name': thes_name.lower(), 'thes_url': thes_url})
+                                    subject_id = int(row2['id'])
+                                except:
+                                    None
 
                 if subject_id not in [None,'']:
                     try:       
