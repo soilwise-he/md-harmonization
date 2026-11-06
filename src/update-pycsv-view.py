@@ -20,11 +20,26 @@ database = databases.Database(DATABASE_URL)
 async def main():
     await database.connect()
 
-    qry="drop table metadata.pycsw_records;"
+    qry="truncate metadata.pycsw_records;"
     res = await database.execute(qry)
 
-    qry="""
-    SELECT 
+    qry="""INSERT into metadata.pycsw_records (
+        identifier, title, abstract, edition, language, bbox, 
+        typename, schema, mdsource, insert_date, xml, metadata, 
+        metadata_type, type, title_alternate, keywords, keywordstype, 
+        themes, parentidentifier, relation, time_begin, time_end, 
+        topicategory, resourcelanguage, creator, publisher, 
+        contributor, organization, securityconstraints, accessconstraints, 
+        otherconstraints, date, date_revision, date_creation, date_publication, 
+        date_modified, format, source, crs, geodescode, denominator, distancevalue, 
+        distanceuom, wkt_geometry, servicetype, servicetypeversion, operation, 
+        couplingtype, operateson, operatesonidentifier, operatesoname, degree, 
+        classification, conditionapplyingtoaccessanduse, lineage, 
+        responsiblepartyrole, specificationtitle, specificationdate, 
+        specificationdatetype, platform, instrument, sensortype, cloudcover, 
+        bands, links, tsvector, wkb_geometry, anytext, contacts, 
+        illuminationelevationangle
+    ) SELECT 
         identifier,
         title, abstract, edition, language, 
         spatial as bbox, 
@@ -58,7 +73,13 @@ async def main():
         coalesce(TO_CHAR(creationdate, 'YYYY-MM-DD'), '') as date_creation, 
         coalesce(TO_CHAR(publicationdate, 'YYYY-MM-DD'), '') as date_publication, 
         coalesce(TO_CHAR(revisiondate, 'YYYY-MM-DD'), '') as date_modified, 
-        format, sources ->> 0 as source, '' as crs, '' as geodescode, resolution as denominator, '' as distancevalue, '' as distanceuom, 
+        format, 
+        sources ->> 0 as source, 
+        '' as crs, 
+        '' as geodescode, 
+        resolution as denominator, 
+        '' as distancevalue, 
+        '' as distanceuom, 
         ST_AsText(ST_MakeEnvelope(
                     (string_to_array(trim(spatial, '[]'), ','))[1]::double precision,  -- xmin
                     (string_to_array(trim(spatial, '[]'), ','))[2]::double precision,  -- ymin
@@ -78,15 +99,8 @@ async def main():
         subjects||title||abstract||lineage||contacts as anytext, 
         contacts as contacts,
         '' as illuminationelevationangle
-        
-    INTO metadata.pycsw_records 
-    FROM metadata.mv_records;
-    """
-    res = await database.execute(qry)
-
-    qry="""
-    ALTER TABLE metadata.pycsw_records
-    ADD PRIMARY KEY (identifier);
+    FROM 
+        metadata.mv_records
     """
     res = await database.execute(qry)
 

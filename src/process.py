@@ -334,13 +334,14 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # process alt identifiers
     a_ids = mcf.get('metadata',{}).get('additional_identifiers',[])
     for k in ['identifier','dataseturi']:
-        idt = mcf.get('metadata',{}).get(k)
-        if isinstance(idt, list):
-            idt = copy.deepcopy(idt)[0]
-        if idt not in [None,''] and idt != record_id:
-            a_ids.append({
-                'scheme': ('uri' if idt.startswith('http') else 'uuid'),
-                'identifier': idt })
+        idt2 = copy.deepcopy(mcf.get('metadata',{}).get(k))
+        if not isinstance(idt2, list): # make list, if not list
+            idt2 = [idt2]
+        for idt in idt2:
+            if idt not in [None,''] and idt != record_id:
+                a_ids.append({
+                    'scheme': ('uri' if idt.startswith('http') else 'uuid'),
+                    'identifier': idt })
     for tid in a_ids:
         if tid.get('identifier') not in [None,''] and tid.get('identifier') != record_id and not tid.get('identifier').startswith('50|'):
             exists2 = await database.fetch_one(f"""
@@ -357,7 +358,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                 await database.execute(qry, values=vals)
     
         # append to distributions if the identifier is a URL and not already present
-        if (tid.get('scheme') or '') == 'doi':
+        if (tid.get('identifier') or '').startswith('http'):
             found = False
             for d in mcf.get('distribution', {}).values():
                 if tid.get('identifier') in d.get('url'):
