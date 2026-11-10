@@ -20,9 +20,15 @@ database = databases.Database(DATABASE_URL)
 async def main():
     await database.connect()
 
+    print('refresh materialized view')
+    qry="REFRESH MATERIALIZED VIEW metadata.mv_records;"
+    res = await database.execute(qry)
+
+    print('truncate metadata.pycsw_records')
     qry="truncate metadata.pycsw_records;"
     res = await database.execute(qry)
 
+    print('insert new records to pycsw')
     qry="""INSERT into metadata.pycsw_records (
         identifier, title, abstract, edition, language, bbox, 
         typename, schema, mdsource, insert_date, xml, metadata, 

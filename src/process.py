@@ -174,11 +174,13 @@ def mcf_sanity_check(identifier, mcf):
 
 async def mcf_deduplicate(identifier, mcf):
     # deduplication of records
-    all_identifiers = [identifier]
+    all_identifiers = identifier.replace(';',',').split(',')
+
     # add alt ids
     for id in mcf.get('metadata',{}).get('additional_identifiers',[]):
-        if id.get('identifier'):
-            all_identifiers.append(id.get('identifier')) 
+        id2 = id.get('identifier')
+        if id2 and isinstance(id2,str) and id2.strip() not in [None,'']:
+            all_identifiers.append(id2) 
     ids_as_str = ",".join([f"'{i}'" for i in all_identifiers])
 
     # get all records from processed which id is in duplicates (or itself)
@@ -244,7 +246,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     md_lang = intl_str(mmd_.get('language',''))
     language = intl_str(mid_.get('language',mmd_.get('language','')))
     edition = mid_.get('edition','')
-    fmt = mid_.get('format','')
+    fmt = intl_str(mid_.get('format',''))
     typ = mmd_.get('hierarchylevel','')
     dts = {"creation": None,
            "publication": None,
@@ -445,6 +447,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     for c,d in (mcf.get('distribution', {}) or {}).items():
         if d.get('url') and d.get('url').startswith('http'):
             fmt = d.get('type') or c
+            fmt = intl_str(fmt)
             url = urllib.parse.quote_plus(d.get('url')) 
             name = d.get('name') 
             description = intl_str(d.get('description')) 
@@ -779,7 +782,8 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         WHERE (NOT EXISTS (
             SELECT 1 FROM metadata.records_failed r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
-            SELECT 1 FROM metadata.records_processed r WHERE r.hash = s.hash)) 
+            SELECT 1 FROM metadata.records_processed r WHERE r.hash = s.hash))
+        AND source='DATA.EUROPA.EU' 
         AND NOT (
                   (
                     identifiertype = 'doi' OR
@@ -861,6 +865,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
             await log_failure(identifier, md5_hash, f'Import failed {e}')
 
 async def log_failure(identifier, hash, error):
+    logger.error(f"Import {identifier} failed: {error}")
     await database.fetch_one(
         f"INSERT INTO {qn('records_failed')} (identifier, hash, error, date) VALUES (:id, :hash, :error, CURRENT_TIMESTAMP) on conflict (hash) do nothing",
         values={
@@ -874,7 +879,7 @@ async def main():
     print("Processing",PROCESS_MODE)
     await database.connect()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
-    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 50)
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 100)
     if PROCESS_MODE == 'UPDATE':
         await reprocess_rows()
     else:

@@ -26,7 +26,7 @@ async def main():
     and r.id = l.fk_record
     """
     res = await database.fetch_all(qry)
-
+    print('Process:',len(res))
     for r in res:
         record_id = r['record_id'].split('items/').pop()
         urlname   = r['urlname']
