@@ -18,12 +18,10 @@ Requirements:
 
 Usage:
     export DATABASE_URL=postgresql://user:pass@host:5432/dbname
-    export TARGET_SCHEMA=metadata.  # include trailing dot, or set to '' for sqlite
-    python pygeometa_harmonize_to_postgres.py
-
+    export TARGET_SCHEMA=metadata
+    python process.py
 """
 
-from genericpath import exists
 import os, sys, yaml, json, copy, re
 import hashlib
 import logging
@@ -106,14 +104,15 @@ def dict_merge(dct, merge_dct):
 
 async def process_workflow(record_id, mcf, source, hash, mode):
     # check if identifier in source already processed? -> update else insert 
-    exists = await database.fetch_all(f"""
+    rec_exists = await database.fetch_all(f"""
             SELECT identifier FROM {qn('records_processed')} 
             WHERE identifier = :identifier and source = :source""", 
             values={'identifier': record_id,
                     'source': source })
     mode = 'insert'
-    if not exists:
-        mode = 'update' 
+    if rec_exists:
+        mode = 'update'
+
     # now enter process step
     if mode == 'insert':
         await database.fetch_one(
@@ -184,29 +183,29 @@ async def mcf_deduplicate(identifier, mcf):
     ids_as_str = ",".join([f"'{i}'" for i in all_identifiers])
 
     # get all records from processed which id is in duplicates (or itself)
-    exists = await database.fetch_all(f"""
+    dup_exists = await database.fetch_all(f"""
                 SELECT identifier, mcf, source 
                 FROM {qn('records_processed')}
                 WHERE identifier in (
-                    select record_id from metadata.alternate_identifiers 
+                    select record_id from {qn('alternate_identifiers')} 
                     where record_id in ({ids_as_str})
                     or alt_identifier in ({ids_as_str}) 
                 )""", 
                 values={})
     
     final_mcf = {}
-    if not exists: # record is not yet in catalogue; use this
+    if not dup_exists: # record is not yet in catalogue; use this
         final_mcf = mcf
 
     # prefer openaire as a source
-    for r in exists:
+    for r in dup_exists:
         if r['source'] == 'openaire':
             final_mcf = json.loads(r['mcf'])
             # use this as main identifier
             identifier = r['identifier']
             # a second arrival here is not expected, but also not problematic
-    
-    for r in exists:
+
+    for r in dup_exists:
         if r['source'] != 'openaire':
             t_mcf = json.loads(r['mcf'])
             if 'identification' in t_mcf:
@@ -780,9 +779,9 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
           ) as ttl_pref, doimetadata, insert_date 
         FROM harvest.vw_unique_harvest_items s 
         WHERE (NOT EXISTS (
-            SELECT 1 FROM metadata.records_failed r WHERE r.hash = s.hash)) 
+            SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
-            SELECT 1 FROM metadata.records_processed r WHERE r.hash = s.hash))
+            SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))
         AND source='DATA.EUROPA.EU' 
         AND NOT (
                   (
@@ -879,7 +878,7 @@ async def main():
     print("Processing",PROCESS_MODE)
     await database.connect()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
-    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 100)
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 1000)
     if PROCESS_MODE == 'UPDATE':
         await reprocess_rows()
     else:
