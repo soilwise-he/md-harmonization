@@ -2,16 +2,9 @@
 Script: pygeometa_harmonize_to_postgres.py
 
 Purpose:
-- Read rows from a Postgres (or SQLite) source table containing a string field with XML or JSON metadata (`txt_result`).
+- Read rows from a Postgres source (harvest.items) table containing a string field with XML or JSON metadata.
 - Use pygeometa to detect schema and harmonize to a common model (MCF-like dict) via `pygeometa.core.import_metadata`.
-- Store harmonized metadata and related entities in relational tables under a configurable schema prefix (default: 'metadata.').
-
-Changes in this update:
-- The SELECT in `process_all_source_rows()` only retrieves source rows whose MD5 (if present) is not already in the target `records.md5_hash`.
-  Rows with NULL md5 will also be retrieved (they will be deduplicated later after computing MD5).
-- `insert_record` now inserts all fields of the `records` table.
-- Contacts from the MCF are created in the contacts table (if missing) before creating the relationship in contact_metadata.
-- All distributions from the MCF are inserted into the `distributions` table and reference the record.
+- Store harmonized metadata and related entities in relational tables under a configurable schema prefix (default: 'metadata').
 
 Requirements:
     pip install databases asyncpg python-dotenv pygeometa
@@ -192,11 +185,13 @@ async def mcf_deduplicate(identifier, mcf):
                     or alt_identifier in ({ids_as_str}) 
                 )""", 
                 values={})
-    
-    final_mcf = {}
+  
     if not dup_exists: # record is not yet in catalogue; use this
-        final_mcf = mcf
+        return mcf
 
+    print('Duplicate parsing')
+  
+    final_mcf = {}
     # prefer openaire as a source
     for r in dup_exists:
         if r['source'] == 'openaire':
@@ -221,7 +216,6 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # after initial insert, as this will cause the md5 to differ and the record to be updated again on next harvest, 
     # even if the original source metadata has not changed. Possible solution: separate md5 for source metadata vs 
     # md5 for stored metadata (after augmentation).
-
 
     # workflow
     await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
@@ -319,8 +313,13 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
             ) VALUES (
                 {', '.join([f":{f}" for f in dbvals.keys()])}
             ) on conflict (identifier) do update set
-                {', '.join([f"{f}=:{f}" for f in dbvals.keys()])}"""
-    res = await database.execute(qry,values=dbvals)
+                {', '.join([f"{f}=:{f}" for f in dbvals.keys()])}
+            RETURNING {qn('records')}.xmax=0 AS inserted;"""
+    res = await database.fetch_one(qry,values=dbvals)
+
+    for r in res:
+        if not res['inserted']:
+            logger.info(f'Record {record_id} already exists, updating (for mode: {modus})')
 
     # set project # todo: what happens if the project has changed on a record?
 
@@ -782,7 +781,6 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
             SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
             SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))
-        AND source='DATA.EUROPA.EU' 
         AND NOT (
                   (
                     identifiertype = 'doi' OR
@@ -878,7 +876,7 @@ async def main():
     print("Processing",PROCESS_MODE)
     await database.connect()
     PROCESS_SOURCES = os.getenv('PROCESS_SOURCES', '').split(',')
-    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE', 1000)
+    RECORDS_PER_PAGE = os.getenv('RECORDS_PER_PAGE',1000)
     if PROCESS_MODE == 'UPDATE':
         await reprocess_rows()
     else:
