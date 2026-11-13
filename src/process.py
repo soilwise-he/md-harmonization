@@ -44,8 +44,8 @@ logging.getLogger("pygeometa").setLevel(logging.DEBUG)
 host=os.environ.get("POSTGRES_HOST",'')
 port=os.environ.get("POSTGRES_PORT",'')
 dbname=os.environ.get("POSTGRES_DB",'')
-user=os.environ.get("POSTGRES_USER",'')
-password=os.environ.get("POSTGRES_PASSWORD",'')
+user=urllib.parse.quote(os.environ.get("POSTGRES_USER",''))
+password=urllib.parse.quote(os.environ.get("POSTGRES_PASSWORD",''))
 DATABASE_URL = os.getenv('DATABASE_URL') or f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
 SCHEMA_PREFIX = os.getenv('SCHEMA', 'metadata')  # include trailing dot for schema-qualified names
 
@@ -105,6 +105,7 @@ async def process_workflow(record_id, mcf, source, hash, mode):
     mode = 'insert'
     if rec_exists:
         mode = 'update'
+        print('upd',record_id,source,hash)
 
     # now enter process step
     if mode == 'insert':
@@ -132,7 +133,8 @@ async def process_workflow(record_id, mcf, source, hash, mode):
                 'mode': mode,
                 'mcf': json.dumps(mcf, default=str)
             })
-        
+    # return insert/update
+    return mode    
 
 def mcf_sanity_check(identifier, mcf):
     # some checks on any incoming mcf
@@ -188,8 +190,6 @@ async def mcf_deduplicate(identifier, mcf):
   
     if not dup_exists: # record is not yet in catalogue; use this
         return mcf
-
-    print('Duplicate parsing')
   
     final_mcf = {}
     # prefer openaire as a source
@@ -218,7 +218,8 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     # md5 for stored metadata (after augmentation).
 
     # workflow
-    await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
+    modus = await process_workflow(record_id=record_id, mcf=mcf_in, source=source, hash=md5_hash, mode=modus)
+
     # deduplication
     mcf = await mcf_deduplicate(identifier=record_id, mcf=mcf_in)
 
@@ -781,13 +782,6 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
             SELECT 1 FROM {qn('records_failed')} r WHERE r.hash = s.hash)) 
         AND (NOT EXISTS (
             SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))
-        AND NOT (
-                  (
-                    identifiertype = 'doi' OR
-            	    (identifiertype = 'uri' AND identifier like '%%doi.org%%')
-				  ) AND
-				  coalesce(doimetadata, '') = ''
-                )
         {filtersql}   
         LIMIT {RECORDS_PER_PAGE}"""
 
@@ -816,11 +810,8 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         # some sources log to various source-fields
         # based on source select the relevant source field
             #logger.info(f'parse {source}:{identifier}')
-            if identifiertype == 'doi' or doimetadata not in (None,''):
-                if doimetadata in (None,''):
-                    raise ValueError(f'Empty doi metadata for {identifier} from {source}: {error}')
-                txt = doimetadata
-                mcf = import_metadata('openaire', txt)
+            if doimetadata not in (None,''):
+                mcf = import_metadata('openaire', doimetadata)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
                     mcf = import_metadata('autodetect', txt) # try again as autodetect -> Datacite?
                     if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
@@ -829,7 +820,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
                 mcf = import_metadata('schema-org', txt)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
                     raise ValueError(f'Failed parsing {identifier} from {source} as schema.org')
-                elif mcf['identification'].get('title','') != '':
+                elif mcf['identification'].get('title','') == '':
                     # requires at least title (case impact4soil)
                     raise ValueError(f'Incomplete record {identifier} from {source} as schema.org')
             elif resulttype == 'iso19139:2007' or '<gmd:MD_Metadata' in txt:

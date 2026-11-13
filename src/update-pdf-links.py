@@ -9,8 +9,8 @@ load_dotenv()
 host=os.environ.get("POSTGRES_HOST",'')
 port=os.environ.get("POSTGRES_PORT",'')
 dbname=os.environ.get("POSTGRES_DB",'')
-user=os.environ.get("POSTGRES_USER",'')
-password=os.environ.get("POSTGRES_PASSWORD",'')
+user=urllib.parse.quote(os.environ.get("POSTGRES_USER",''))
+password=urllib.parse.quote(os.environ.get("POSTGRES_PASSWORD",''))
 DATABASE_URL = os.getenv('DATABASE_URL') or f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
 
 database = databases.Database(DATABASE_URL)
