@@ -105,7 +105,6 @@ async def process_workflow(record_id, mcf, source, hash, mode):
     mode = 'insert'
     if rec_exists:
         mode = 'update'
-        print('upd',record_id,source,hash)
 
     # now enter process step
     if mode == 'insert':
@@ -168,44 +167,70 @@ def mcf_sanity_check(identifier, mcf):
 
 async def mcf_deduplicate(identifier, mcf):
     # deduplication of records
-    all_identifiers = identifier.replace(';',',').split(',')
+    all_identifiers0 = identifier.replace(';',',').split(',')
+    all_identifiers = []
+    for id5 in all_identifiers0:
+        id6 = id5.split('doi.org/').pop().strip()
+        if len(id6) > 4 and not id6.isnumeric() and not id6.startswith('50|') and not id6.startswith('doi_dedup'):
+            all_identifiers.append(id6)
 
     # add alt ids
     for id in mcf.get('metadata',{}).get('additional_identifiers',[]):
         id2 = id.get('identifier')
-        if id2 and isinstance(id2,str) and id2.strip() not in [None,'']:
-            all_identifiers.append(id2) 
-    ids_as_str = ",".join([f"'{i}'" for i in all_identifiers])
+        if id2 and isinstance(id2,str): 
+            id3 = id2.split('doi.org/').pop().strip() 
+            if len(id3) > 4 and not id3.isnumeric() and not id3.startswith('50|') and not id3.startswith('doi_dedup'):
+                all_identifiers.append(id3) 
+    
+    duplicate_filters = " OR ".join([f"record_id like '%{i}' OR alt_identifier like '%{i}'" for i in all_identifiers])
+
+    # First see if db already has a record, expected 1 (multiple would be from historic)
+    dup_exists = await database.fetch_all(f"""
+            select distinct record_id from {qn('alternate_identifiers')} 
+            where {duplicate_filters}""", 
+        values={})
+    
+    if not dup_exists: # record is not yet in catalogue; use this
+        return mcf
+
+    # see if this is the same record as currently in the database
+    for r in dup_exists:
+        if r['record_id'] not in [None,'']:
+            tmp_identifier = r['record_id']
+        if r['record_id'] == identifier:
+            # this is an update - make sure to keep this identifier
+            break
+    if tmp_identifier:
+        identifier = tmp_identifier
 
     # get all records from processed which id is in duplicates (or itself)
-    dup_exists = await database.fetch_all(f"""
+    duplicates = await database.fetch_all(f"""
                 SELECT identifier, mcf, source 
                 FROM {qn('records_processed')}
                 WHERE identifier in (
                     select record_id from {qn('alternate_identifiers')} 
-                    where record_id in ({ids_as_str})
-                    or alt_identifier in ({ids_as_str}) 
+                    where 
+                    {duplicate_filters} 
                 )""", 
                 values={})
   
-    if not dup_exists: # record is not yet in catalogue; use this
-        return mcf
-  
     final_mcf = {}
     # prefer openaire as a source
-    for r in dup_exists:
+    for r in duplicates:
         if r['source'] == 'openaire':
             final_mcf = json.loads(r['mcf'])
             # use this as main identifier
             identifier = r['identifier']
             # a second arrival here is not expected, but also not problematic
 
-    for r in dup_exists:
+    for r in duplicates:
         if r['source'] != 'openaire':
             t_mcf = json.loads(r['mcf'])
             if 'identification' in t_mcf:
                 dict_merge(final_mcf,  t_mcf)
 
+    final_mcf.setdefault('metadata')['identifier'] = identifier
+ 
     return final_mcf
 
 async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_hash: Optional[str], source: str, project: str, harvest_date = None, modus='insert') -> str:
@@ -222,7 +247,9 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
 
     # deduplication
     mcf = await mcf_deduplicate(identifier=record_id, mcf=mcf_in)
-
+    record_id = mcf.get('metadata').get('identifier') # if dedup, use id from duplicate (within metadata)
+    
+    # sanity check
     mcf_sanity_check(record_id, mcf)
     
     # metadata should at least have a title
@@ -304,7 +331,6 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                 'spatial_desc': spatial_desc,
                 'temporal_start': temporal_start,
                 'temporal_end': temporal_end,
-                'md5_hash': md5_hash,
                 'raw_mcf': json.dumps(mcf, default=str)
             }
 
@@ -321,6 +347,8 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
     for r in res:
         if not res['inserted']:
             logger.info(f'Record {record_id} already exists, updating (for mode: {modus})')
+        else:
+            logger.info(f'Record {record_id} new, inserting (for mode: {modus})')
 
     # set project # todo: what happens if the project has changed on a record?
 
@@ -344,7 +372,7 @@ async def insert_record_and_related(mcf_in: Dict[str, Any], record_id: str, md5_
                     'scheme': ('uri' if idt.startswith('http') else 'uuid'),
                     'identifier': idt })
     for tid in a_ids:
-        if tid.get('identifier') not in [None,''] and tid.get('identifier') != record_id and not tid.get('identifier').startswith('50|'):
+        if tid.get('identifier') not in [None,''] and tid.get('identifier') != record_id and not tid.get('identifier').startswith('50|') and not tid.get('identifier').startswith('doi_dedup'):
             exists2 = await database.fetch_one(f"""
                 SELECT record_id FROM {qn('alternate_identifiers')} WHERE (
                 alt_identifier = :identifier and record_id = :fk_identifier ) OR (
@@ -783,6 +811,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         AND (NOT EXISTS (
             SELECT 1 FROM {qn('records_processed')} r WHERE r.hash = s.hash))
         {filtersql}   
+        ORDER BY identifier
         LIMIT {RECORDS_PER_PAGE}"""
 
     # resulttype='iso19139:2007' and
@@ -845,8 +874,6 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
                         
             # insert record and related entities
             record_id = await insert_record_and_related(mcf, identifier, md5_hash, source, project, r['insert_date'])
-            if record_id:
-                logger.info('record id %s for source %s', identifier, source)
 
         except Exception as e:
             logger.error(f"Import in {source}: {e}: {traceback.format_exc()}")
