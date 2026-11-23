@@ -2,6 +2,7 @@
 import asyncio, os
 import databases
 from dotenv import load_dotenv
+import urllib.parse
 
 # Load environment
 load_dotenv()
