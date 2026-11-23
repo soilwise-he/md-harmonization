@@ -1,4 +1,4 @@
-pygeometa @ git+https://github.com/pvgenuchten/pygeometa@soilwise
+pygeometa @ git+https://github.com/geopython/pygeometa@master
 psycopg2-binary
 python-dotenv
 rdflib

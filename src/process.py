@@ -218,14 +218,14 @@ async def mcf_deduplicate(identifier, mcf):
     # prefer openaire as a source
     for r in duplicates:
         if r['source'] == 'openaire':
-            final_mcf = json.loads(r['mcf'])
+            final_mcf = migrate(json.loads(r['mcf']))
             # use this as main identifier
             identifier = r['identifier']
             # a second arrival here is not expected, but also not problematic
 
     for r in duplicates:
         if r['source'] != 'openaire':
-            t_mcf = json.loads(r['mcf'])
+            t_mcf = migrate(json.loads(r['mcf']))
             if 'identification' in t_mcf:
                 dict_merge(final_mcf,  t_mcf)
 
@@ -786,7 +786,7 @@ async def reprocess_rows():
 
     for r in rows:
         identifier = str(r['identifier'])
-        mcf = json.loads(r['raw_mcf'])
+        mcf = migrate(json.loads(r['raw_mcf']))
         md5_hash= r['md5_hash']
         harvest_date= r['harvest_date']
         await insert_record_and_related(mcf=mcf, record_id=identifier, md5_hash=md5_hash, project=None, harvest_date=harvest_date, modus="update")
@@ -840,6 +840,7 @@ async def process_source_rows(PROCESS_SOURCE=None, RECORDS_PER_PAGE=100):
         # based on source select the relevant source field
             #logger.info(f'parse {source}:{identifier}')
             if doimetadata not in (None,''):
+                
                 mcf = import_metadata('openaire', doimetadata)
                 if not isinstance(mcf, dict) or 'identification' not in mcf.keys():
                     mcf = import_metadata('autodetect', txt) # try again as autodetect -> Datacite?
